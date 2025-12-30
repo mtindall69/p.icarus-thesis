@@ -1,7 +1,7 @@
 #Polyommatus icarus project: Female polymorphism, thermal plasticity, and GxE
 
 #clear environments
-rm(list=ls())
+rm(list=ls()) 
 
 #set directory
 setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/")

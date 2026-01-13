@@ -1,4 +1,4 @@
-# Polyommatus Animal Model
+# Polyommatus Animal Model - GxE 
 
 #clear environments
 rm(list=ls())
@@ -128,8 +128,8 @@ cat("Posterior mean evolvability:", mean(evolvability), "\n")
 # 6. GxE Interaction
 ##############################################
 # idh(Temperature):animal gives separate VA for cold and warm
-VA_cold <- model$VCV[,"idh(Temperature):animal.cold"]
-VA_warm <- model$VCV[,"idh(Temperature):animal.warm"]
+VA_cold <- model$VCV[,"Temperaturecold.animal"]
+VA_warm <- model$VCV[,"Temperaturewarm.animal"]
           ## SUBSCRIPT OUT OF BOUNDS
 
 cat("VA cold:", mean(VA_cold), "\n")
@@ -157,8 +157,8 @@ h2 <- VA / (VA + Vres + Vm)
 meanBlueness <- mean(data$Blueness)
 evolvability <- VA / (meanBlueness^2)
 
-VA_cold <- model$VCV[,"idh(Temperature):animal.cold"]
-VA_warm <- model$VCV[,"idh(Temperature):animal.warm"]
+VA_cold <- model$VCV[,"Temperaturecold.animal"]
+VA_warm <- model$VCV[,"Temperaturewarm.animal"]
 
 ##############################################
 # 7. Posterior Density Plots
@@ -167,7 +167,7 @@ VA_warm <- model$VCV[,"idh(Temperature):animal.warm"]
 # Function to plot posterior distributions
 plot_posterior <- function(samples, title, xlab){
   df <- data.frame(value = samples)
-  ggplot(df, aes(x = value)) +
+  ggplot(df, aes(x = samples)) +
     geom_density(fill = "steelblue", alpha = 0.6) +
     theme_minimal() +
     labs(title = title, x = xlab, y = "Density") +
@@ -187,5 +187,4 @@ plot_posterior(evolvability, "Posterior of Evolvability (e)", "e")
 # Plot VA for cold and warm
 plot_posterior(VA_cold, "Posterior of VA in Cold Environment", "VA_cold")
 plot_posterior(VA_warm, "Posterior of VA in Warm Environment", "VA_warm")
-
 

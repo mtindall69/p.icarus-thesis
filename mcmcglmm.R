@@ -130,7 +130,6 @@ cat("Posterior mean evolvability:", mean(evolvability), "\n")
 # idh(Temperature):animal gives separate VA for cold and warm
 VA_cold <- model$VCV[,"Temperaturecold.animal"]
 VA_warm <- model$VCV[,"Temperaturewarm.animal"]
-          ## SUBSCRIPT OUT OF BOUNDS
 
 cat("VA cold:", mean(VA_cold), "\n")
 cat("VA warm:", mean(VA_warm), "\n")
@@ -141,10 +140,6 @@ cat("VA warm:", mean(VA_warm), "\n")
 ##############################################
 # Extended Script: Posterior Plots
 ##############################################
-
-# Load ggplot2 for plotting
-if(!require(ggplot2)) install.packages("ggplot2")
-library(ggplot2)
 
 ##############################################
 # 5. Extract Genetic Parameters (same as before)

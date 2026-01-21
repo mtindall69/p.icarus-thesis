@@ -76,6 +76,12 @@ abline(m)
 summary(m)$coef # 0.458g adult/g pupa, adult about 46% pupal weight
 #INCLUDE MALES
 
+plot(bluefemales$Blue_score, bluefemales$Adult_weight_g,
+     xlab="Blue Score", ylab="Adult Weight (g)",
+     main="Blueness to Adult Weight")
+m <- lm(bluefemales$Adult_weight_g ~ bluefemales$Blue_score)
+abline(m)
+
 # IS THERE A METABOLIC COST TO PRODUCE DIFFERENT COLORS?
 mw <- lmer(Adult_weight_g ~ Pupation_weight_g * Temp * Blue_score + (1|MotherID), 
            data=bluefemales)

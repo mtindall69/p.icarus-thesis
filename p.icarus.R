@@ -50,55 +50,6 @@ swarmcount <- table(swarm$Blue_score) # 1: 50, 2: 7, 3: 5, 4: 4, 5: 1 (67)
 
 #================================================================
 
-#Mean sizes
-mean(bluefemales$Adult_weight_g) # avg for all females is 0.02315g
-mean(ofemales$Adult_weight_g) # 0.02316g
-mean(sfemales$Adult_weight_g) # 0.02314g
-#Populations do not differ much in weight, Oland marginally larger
-mean(coldfemales$Adult_weight_g) # 0.02569g
-mean(warmfemales$Adult_weight_g) # 0.01912g
-#Size decreases with temp, 26 much smaller than 18
-mean(ocold$Adult_weight_g) # 0.02579g
-mean(scold$Adult_weight_g) # 0.02554g 
-#Oland are slightly larger in 18
-mean(owarm$Adult_weight_g) # 0.01824g
-mean(swarm$Adult_weight_g) # 0.01995g
-#Skane larger in warm, Oland size more sensitive to warm
-# significantly different? chi square? sig figs and error?
-
-plot(bluefemales$Pupation_weight_g, bluefemales$Adult_weight_g, 
-     xlim=c(0,0.11), ylim=(c(0,0.05)),
-     xlab="Pupa Weight (g)", ylab="Adult Weight (g)",
-     main="Pupa Weight to Adult Weight")
-m <- lm(bluefemales$Adult_weight_g ~ bluefemales$Pupation_weight_g)
-abline(m)
-#add y=x line
-summary(m)$coef # 0.458g adult/g pupa, adult about 46% pupal weight
-#INCLUDE MALES
-
-plot(bluefemales$Blue_score, bluefemales$Adult_weight_g,
-     xlab="Blue Score", ylab="Adult Weight (g)",
-     main="Blueness to Adult Weight")
-m <- lm(bluefemales$Adult_weight_g ~ bluefemales$Blue_score)
-abline(m)
-
-# IS THERE A METABOLIC COST TO PRODUCE DIFFERENT COLORS?
-mw <- lmer(Adult_weight_g ~ Pupation_weight_g * Temp * Blue_score + (1|MotherID), 
-           data=bluefemales)
-summary(mw)
-Anova(mw)
-plot(allEffects(mw)) # scores do not seem to lose different weights BUT
-      # Blue score is significant p=0.0115, interaction is not?
-#summary(effect(Blue_score, mw)) #doesn't work?
-
-mw2 <- lmer(Adult_weight_g ~ Pupation_weight_g + Temp + Blue_score + 
-              Pupation_weight_g:Temp + Pupation_weight_g:Blue_score + 
-              (1|MotherID), data=bluefemales)
-summary(mw2)
-Anova(mw2)
-
-#================================================================
-
 ## Preliminary data visualization
 hist(bluefemales$Blue_score, breaks=6, xlab="Blue Score", 
      main="Distribution of Blue Scores") # 1 and 5 modes
@@ -154,32 +105,93 @@ par(mfrow=c(1,1))
 #doesn't really work
 
 
-#===================================================================
-## MOTHER FITNESS * BLUENESS
+#===========================================================
+# FITNESS * BLUENESS
+#===========================================================
 
 bluemothers = read_excel("Blue butterflies.xlsx")
+omothers = subset(bluemothers, Population=='O')
+smothers = subset(bluemothers, Population=='S')
 
-# Fecundity vs blueness
+# FECUNDITY VS BLUENESS
 plot(bluemothers$Blue_score, bluemothers$Total_Eggs,
      xlab="Mother Blue Score", ylab="Fecundity (eggs laid)",
      main="Blueness vs Fecundity")
 o <- lm(Total_Eggs ~ Blue_score, data=bluemothers)
 summary(o)
 abline(o)
+legend("topleft", legend=c(expression(paste(beta, " = 46" %+-% "18")), 
+                           "p = 0.0132"))
 # 46 +/- 18 eggs per blue score, p=0.0132
 
-# Survival vs blueness
+#by population
+par(mfrow=c(1,2))
+
+plot(omothers$Blue_score, omothers$Total_Eggs,
+     xlab="Mother Blue Score", ylab="Fecundity (eggs laid)",
+     main="Oland Blueness vs Fecundity")
+o <- lm(Total_Eggs ~ Blue_score, data=omothers)
+summary(o)
+abline(o, lty=2)
+legend("topleft", legend=c(expression(paste(beta, " = 10" %+-% "38")), 
+                           "p = 0.796"))
+
+plot(smothers$Blue_score, smothers$Total_Eggs,
+     xlab="Mother Blue Score", ylab="Fecundity (eggs laid)",
+     main="Skane Blueness vs Fecundity")
+o <- lm(Total_Eggs ~ Blue_score, data=smothers)
+summary(o)
+abline(o, lty=2)
+legend("topleft", legend=c(expression(paste(beta, " = 20" %+-% "17")), 
+                           "p = 0.229"))
+
+par(mfrow=c(1,1))
+
+# SURVIVAL VS BLUENESS
 plot(bluemothers$Blue_score, bluemothers$Offspring_matured,
      xlab="Mother Blue Score", ylab="Mature Offspring",
      main="Mother Blueness vs Offspring Survival")
 v <- lm(Offspring_matured ~ Blue_score, data=bluemothers)
 summary(v)
 abline(v)
+legend("topleft", legend=c(expression(paste(beta, " = 2.18" %+-% "0.75")), 
+                           "p = 0.005"))
 # 2.18 more offspring per blue score, p=0.00499
 
-#===================================================================
+#by population
+par(mfrow=c(1,2))
 
-# Linear Mixed Models
+plot(omothers$Blue_score, omothers$Offspring_matured,
+     xlab="Mother Blue Score", ylab="Mature Offspring",
+     main="Oland Mother Blueness vs Survivorship")
+v <- lm(Offspring_matured ~ Blue_score, data=omothers)
+summary(v)
+abline(v)
+legend("topleft", legend=c(expression(paste(beta, " = 2.4" %+-% "1.3")), 
+                           "p = 0.068"))
+
+plot(bluemothers$Blue_score, bluemothers$Offspring_matured,
+     xlab="Mother Blue Score", ylab="Mature Offspring",
+     main="Skane Mother Blueness vs Survivorship")
+v <- lm(Offspring_matured ~ Blue_score, data=smothers)
+summary(v)
+abline(v)
+legend("topleft", legend=c(expression(paste(beta, " = 1.8" %+-% "1.2")), 
+                           "p = 0.14"))
+
+par(mfrow=c(1,1))
+
+# BLUE SCORE VS ADULT WEIGHT
+plot(bluefemales$Blue_score, bluefemales$Adult_weight_g,
+     xlab="Blue Score", ylab="Adult Weight (g)",
+     main="Blueness to Adult Weight")
+m <- lm(bluefemales$Adult_weight_g ~ bluefemales$Blue_score)
+abline(m)
+summary(m) # Weakly positive but significant- 0.001g/bluescore
+
+#===================================================================
+# LINEAR MIXED MODELS
+#===================================================================
 null <- lm(Blue_score ~ 1, data=bluefemales)
 summary(null)
 
@@ -193,8 +205,11 @@ Anova(mod1)
 summary(mod1) # interaction of temp and motherpop is significant
 plot(allEffects(mod1))
 
-
+#=====================================================================
 ## MOTHER-OFFSPRING REGRESSION
+#=====================================================================
+
+# All daughters visualized, colored by pop
 ggplot(data=bluefemales, aes(x=MotherScore, y=Blue_score, color=MotherPop)) +
     geom_point() +
     geom_jitter(width=0.3, height=0.3) +
@@ -208,6 +223,7 @@ meanscores <- bluefemales %>%
   summarise(Blue_score = mean(Blue_score), MotherScore = mean(MotherScore))
 print(n=42,meanscores)
 
+# MOTHER-MEAN-OFFSPRING REGRESSION
 plot(meanscores$MotherScore, meanscores$Blue_score, xlim=c(1,5), ylim=c(1,5),
      xlab="Mother Score", ylab="Mean Offspring Score",
      main="Mother Blue Score to Mean Offspring Blue Score")
@@ -231,6 +247,7 @@ va # 1.6437
 e <- va/(mean(bluefemales$Blue_score))
 e
 
+## HERITABILITY OF BLUENESS BY TEMP
 meanscoresbytemp <- bluefemales %>%
   group_by(MotherID,Temp) %>%
   summarise(Blue_score = mean(Blue_score), MotherScore = mean(MotherScore))
@@ -239,7 +256,6 @@ meanscoresbytemp$bluenesschange <- meanscoresbytemp$Blue_score - meanscoresbytem
 coldmeans <- subset(meanscoresbytemp, Temp==18)
 warmmeans <- subset(meanscoresbytemp, Temp==26)
 
-## HERITABILITY OF BLUENESS BY TEMP
 par(mfrow=c(1,2))
 plot(coldmeans$MotherScore, coldmeans$Blue_score, 
      xlim=c(1,5), ylim=c(1,5),
@@ -262,7 +278,41 @@ summary(v)
 legend(0.75,3.1, legend=c(expression(paste(beta, " = 0.39")),
                           "p = 0.044",expression(paste("R"^2," = 0.0833"))), bty="n")
 
+
+## HERITABILITY OF BLUENESS BY POP
+meanscoresbypop <- bluefemales %>%
+  group_by(MotherID,MotherPop) %>%
+  summarise(Blue_score = mean(Blue_score), MotherScore = mean(MotherScore))
+print(n=42,meanscoresbypop)
+meanscoresbypop$bluenesschange <- meanscoresbypop$Blue_score - meanscoresbypop$MotherScore
+omeans <- subset(meanscoresbypop, MotherPop=='O')
+smeans <- subset(meanscoresbypop, MotherPop=='S')
+
+plot(omeans$MotherScore, omeans$Blue_score, 
+     xlim=c(1,5), ylim=c(1,5),
+     xlab="Mother Score", ylab="Mean Offspring Score",
+     main="Oland Mother-Offspring Regression")
+k <- lm(Blue_score ~ MotherScore, data=omeans)
+abline(k, lty=2)
+summary(k)
+legend("bottomleft", legend=c(expression(paste(beta, " = -0.28")),
+                          "p = 0.284"), bty="n")
+#not significant, sample size?
+
+plot(smeans$MotherScore, smeans$Blue_score, 
+     xlim=c(1,5), ylim=c(1,5),
+     xlab="Mother Score", ylab="Mean Offspring Score",
+     main="Skane Mother-Offspring Regression")
+v <- lm(Blue_score ~ MotherScore, data=smeans)
+abline(v, lty=2)
+summary(v)
+legend("topleft", legend=c(expression(paste(beta, " = -0.003")),
+                          "p = 0.99"), bty="n")
+#not significant
+
 par(mfrow=c(1,1))
+
+#=====================================================================
 
 ## CHANGE IN BLUENESS BY MOTHER
 ggplot(data=meanscoresbytemp, aes(x=Temp, y=Blue_score, color=MotherID)) +

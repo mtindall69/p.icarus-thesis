@@ -105,7 +105,7 @@ mean(swarmm$Adult_weight_g) # 0.02059g
 #Oland males are smaller than Skane in cold and much smaller in warm
       # Oland size more sensitive to warm
 #Males generally smaller, slightly larger in cold, slightly smaller in warm BUT
-#Skane males are bigger than Skane females, larger in coold, about same in warm
+#Skane males are bigger than Skane females, larger in cold, about same in warm
 #Oland males are smaller than Oland females, about same in cold, smaller in warm
 
 #===============================================================
@@ -123,7 +123,7 @@ m <- lm(bluefemales$Adult_weight_g ~ bluefemales$Pupation_weight_g)
 abline(m, col="red")
 abline(a=0, b=1, lty=2)
 summary(m)$coef # 0.458g adult/g pupa, adult about 46% pupal weight
-legend(0.08,0.02, legend=c(expression(paste(beta, " = 0.46")),"p < 0.01"), bty="n")
+legend("bottomright", legend=c(expression(paste(beta, " = 0.46")),"p < 0.01"))
 
 #Males
 plot(bluemales$Pupation_weight_g, bluemales$Adult_weight_g, 
@@ -134,7 +134,7 @@ m <- lm(bluemales$Adult_weight_g ~ bluemales$Pupation_weight_g)
 abline(m, col="blue")
 abline(a=0, b=1, lty=2)
 summary(m)$coef # 0.429g adult/g pupa, adult about 43% pupal weight
-legend(0.08,0.02, legend=c(expression(paste(beta, " = 0.43")),"p < 0.01"), bty="n")
+legend("bottomright", legend=c(expression(paste(beta, " = 0.43")),"p < 0.01"))
   #Males lose more weight, blue more expensive? or male weight not as important
 
 par(mfrow=c(1,1))
@@ -150,7 +150,77 @@ m <- lm(blueoffspring$Adult_weight_g ~ blueoffspring$Pupation_weight_g)
 abline(m)
 abline(a=0, b=1, lty=2)
 summary(m)$coef # 0.439g adult/g pupa, adult about 44% pupal weight
-legend(0.08,0.02, legend=c(expression(paste(beta, " = 0.44")),"p < 0.01"), bty="n")
-legend("bottomright", legend=c("Female", "Male"), pch=20, 
+legend("bottomright", legend=c(expression(paste(beta, " = 0.44")),"p < 0.01"))
+legend("topleft", legend=c("Female", "Male"), pch=20, 
        col=c("red","blue"))
 
+
+
+#FOR POPS AND TEMPS
+
+par(mfrow=c(2,1))
+
+#Cold
+plot(coldoff$Pupation_weight_g, coldoff$Adult_weight_g, 
+     xlim=c(0,0.11), ylim=(c(0,0.05)),
+     xlab="Pupa Weight (g)", ylab="Adult Weight (g)",
+     main="Cold Pupa Weight to Adult Weight")
+m <- lm(coldoff$Adult_weight_g ~ coldoff$Pupation_weight_g)
+abline(m, col="blue")
+abline(a=0, b=1, lty=2)
+summary(m)$coef # 0.418g adult/g pupa, adult about 42% pupal weight
+legend("bottomright", legend=c(expression(paste(beta, " = 0.42")),"p < 0.01"))
+
+#Warm
+plot(warmoff$Pupation_weight_g, warmoff$Adult_weight_g, 
+     xlim=c(0,0.11), ylim=(c(0,0.05)),
+     xlab="Pupa Weight (g)", ylab="Adult Weight (g)",
+     main="Warm Pupa Weight to Adult Weight")
+m <- lm(warmoff$Adult_weight_g ~ warmoff$Pupation_weight_g)
+abline(m, col="red")
+abline(a=0, b=1, lty=2)
+summary(m)$coef # 0.405g adult/g pupa, adult about 40% pupal weight
+legend("bottomright", legend=c(expression(paste(beta, " = 0.40")),"p < 0.01"))
+
+#Oland
+plot(ooff$Pupation_weight_g, ooff$Adult_weight_g, 
+     xlim=c(0,0.11), ylim=(c(0,0.05)),
+     xlab="Pupa Weight (g)", ylab="Adult Weight (g)",
+     main="Oland Pupa Weight to Adult Weight")
+m <- lm(ooff$Adult_weight_g ~ ooff$Pupation_weight_g)
+abline(m, col="steelblue")
+abline(a=0, b=1, lty=2)
+summary(m)$coef # 0.452g adult/g pupa, adult about 46% pupal weight
+legend("bottomright", legend=c(expression(paste(beta, " = 0.45")),"p < 0.01"))
+
+#Skane
+plot(soff$Pupation_weight_g, soff$Adult_weight_g, 
+     xlim=c(0,0.11), ylim=(c(0,0.05)),
+     xlab="Pupa Weight (g)", ylab="Adult Weight (g)",
+     main="Skane Pupa Weight to Adult Weight")
+m <- lm(soff$Adult_weight_g ~ soff$Pupation_weight_g)
+abline(m, col="orange")
+abline(a=0, b=1, lty=2)
+summary(m)$coef # 0.429g adult/g pupa, adult about 43% pupal weight
+legend("bottomright", legend=c(expression(paste(beta, " = 0.43")),"p < 0.01"))
+
+par(mfrow=c(1,1))
+
+#=========================================================
+# Mixed Models - 
+# IS THERE A METABOLIC COST TO PRODUCE DIFFERENT COLORS?
+#=========================================================
+
+mw <- lmer(Adult_weight_g ~ Pupation_weight_g * Temp * Blue_score + (1|MotherID), 
+           data=bluefemales)
+summary(mw)
+Anova(mw)
+plot(allEffects(mw)) # scores do not seem to lose different weights BUT
+# Blue score is significant p=0.0115, interaction is not?
+#summary(effect(Blue_score, mw)) #doesn't work?
+
+mw2 <- lmer(Adult_weight_g ~ Pupation_weight_g + Temp + Blue_score + 
+              Pupation_weight_g:Temp + Pupation_weight_g:Blue_score + 
+              (1|MotherID), data=bluefemales)
+summary(mw2)
+Anova(mw2)

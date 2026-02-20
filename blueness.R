@@ -4,52 +4,54 @@ install.packages("recolorize") # CRAN release
 
 library(recolorize)
 
-# load an image that comes with the package:
-img <- system.file("extdata/corbetti.png", package = "recolorize")
-rc <- recolorize2(img, cutoff = 10)
+## TESTS
 
-img <- readImage("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/1.12d_1.png")
+# # load an image that comes with the package:
+# img <- system.file("extdata/corbetti.png", package = "recolorize")
+# rc <- recolorize2(img, cutoff = 10)
+# 
+# img <- readImage("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/1.12d_1.png")
+# 
+# #bins >= 4
+# 
+# # get list of all PNGs that come with the package:
+# images <- dir(system.file("extdata", package = "recolorize"),
+#               pattern = ".png", full.names = TRUE)
+# images <- dir("C:\Users\maddi\demo-grounded-sam\data_raw\segmentation_masks-butterflies", 
+#               pattern = ".png", full.names = TRUE)
+# 
+# # for every image...
+# for (i in 1:length(images)) {
+#   
+#   # get an initial fit with generic clustering
+#   init_fit <- recolorize2(images[i], method = "hist", bins = 6, cutoff = 30, plotting = FALSE)
+#   
+#   # drop small patches
+#   refined_fit <- thresholdRecolor(init_fit, pct = 0.01, plotting = FALSE)
+#   
+#   # store in an output variable
+#   if (i == 1) {
+#     colormap_list <- list(refined_fit)
+#   } else {
+#     colormap_list[[i]] <- refined_fit
+#   }
+# }
+# 
+# # compare original to recolored images:
+# layout(matrix(1:10, nrow = 2, byrow = TRUE))
+# par(mar = rep(0, 4))
+# o <- lapply(colormap_list, function(i) plot(i$original_img))
+# r <- lapply(colormap_list, function(i) plotImageArray(recoloredImage(i)))
 
-#bins >= 4
 
-# get list of all PNGs that come with the package:
-images <- dir(system.file("extdata", package = "recolorize"),
-              pattern = ".png", full.names = TRUE)
-images <- dir("C:\Users\maddi\demo-grounded-sam\data_raw\segmentation_masks-butterflies", 
-              pattern = ".png", full.names = TRUE)
-
-# for every image...
-for (i in 1:length(images)) {
-  
-  # get an initial fit with generic clustering
-  init_fit <- recolorize2(images[i], method = "hist", bins = 6, cutoff = 30, plotting = FALSE)
-  
-  # drop small patches
-  refined_fit <- thresholdRecolor(init_fit, pct = 0.01, plotting = FALSE)
-  
-  # store in an output variable
-  if (i == 1) {
-    colormap_list <- list(refined_fit)
-  } else {
-    colormap_list[[i]] <- refined_fit
-  }
-}
-
-# compare original to recolored images:
-layout(matrix(1:10, nrow = 2, byrow = TRUE))
-par(mar = rep(0, 4))
-o <- lapply(colormap_list, function(i) plot(i$original_img))
-r <- lapply(colormap_list, function(i) plotImageArray(recoloredImage(i)))
-
-
-#Chen code
+# BATCH PROCESSING
 library(dplyr)
 img_dir <- "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test"
 images <- list.files(img_dir, pattern = "\\.png$", full.names = TRUE)
 rc_list <- vector("list", length = length(images))
 for (i in 1:length(images)) {
-  rc <- suppressMessages(recolorize2(images[i], bins = 6,
-                                     cutoff = 30, plotting = FALSE))
+  rc <- suppressMessages(recolorize2(images[i], bins = 5,
+                                     cutoff = 30, plotting = TRUE))
   
   
   rc_list[[i]] <- data.frame(
@@ -61,5 +63,59 @@ for (i in 1:length(images)) {
   )
 }
 combined_df <- bind_rows(rc_list)
-write.csv(combined_df, "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/test.csv", 
+write.csv(combined_df, "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/test2.csv", 
           row.names = FALSE)
+
+# CONVERT RGB to HSV
+install.packages("colorspace")
+library(colorspace)
+
+rgb4bins <- read.csv("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/test1.csv")
+
+# Create sRGB object (0–255 input)
+srgb <- sRGB(R = rgb4bins$R/255, G = rgb4bins$G/255, B = rgb4bins$B/255)
+
+# Convert to HSV
+hsv_obj <- as(srgb, "HSV")
+hsv_coords <- coords(hsv_obj)     # columns: H, S, V
+
+rgb4bins$H <- hsv_coords[, "H"]   # in degrees
+rgb4bins$S <- hsv_coords[, "S"]   # 0–1
+rgb4bins$V <- hsv_coords[, "V"]   # 0–1
+
+write.csv(rgb4bins, "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/4bin_hsv.csv", 
+          row.names = FALSE)
+
+
+rgb6bins <- read.csv("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/test.csv")
+
+# Create sRGB object (0–255 input)
+srgb <- sRGB(R = rgb6bins$R/255, G = rgb6bins$G/255, B = rgb6bins$B/255)
+
+# Convert to HSV
+hsv_obj <- as(srgb, "HSV")
+hsv_coords <- coords(hsv_obj)     # columns: H, S, V
+
+rgb6bins$H <- hsv_coords[, "H"]   # in degrees
+rgb6bins$S <- hsv_coords[, "S"]   # 0–1
+rgb6bins$V <- hsv_coords[, "V"]   # 0–1
+
+write.csv(rgb6bins, "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/6bin_hsv.csv", 
+          row.names = FALSE)
+
+rgb5bins <- read.csv("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/test2.csv")
+
+# Create sRGB object (0–255 input)
+srgb <- sRGB(R = rgb5bins$R/255, G = rgb5bins$G/255, B = rgb5bins$B/255)
+
+# Convert to HSV
+hsv_obj <- as(srgb, "HSV")
+hsv_coords <- coords(hsv_obj)     # columns: H, S, V
+
+rgb5bins$H <- hsv_coords[, "H"]   # in degrees
+rgb5bins$S <- hsv_coords[, "S"]   # 0–1
+rgb5bins$V <- hsv_coords[, "V"]   # 0–1
+
+write.csv(rgb5bins, "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmentation_masks-butterflies/test/5bin_hsv.csv", 
+          row.names = FALSE)
+

@@ -137,3 +137,40 @@ write.csv(final_result, "C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/segmen
           row.names = FALSE)
 
 
+# Calculate ICC for area and blueness
+library(readxl)
+areas <- read_excel("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/ICC.xlsx")
+
+install.packages("irr")
+library(irr)
+
+icc(areas,
+    model = "twoway",     # both subjects and methods random or mixed
+    type  = "agreement",  # absolute agreement, not just consistency
+    unit  = "single"     # reliability of a single method
+)
+# ICC = 0.98 (mother1 test, ImageJ vs GroundedSAM)
+# ICC = 0.994 (whole dataset, GroundedSAM vs recolorize)
+
+install.packages("psych")
+library(psych)
+
+ICC(areas) # 0.98
+
+
+blues <- read_excel("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/ICC.xlsx")
+
+icc(blues,
+    model = "twoway", 
+    type  = "agreement", 
+    unit  = "single"     
+)
+# ICC = 0.925 (ImageJ vs 6bins)
+# ICC = 0.916 (ImageJ vs 5bins)
+# ICC = 0.855 (ImageJ vs 4bins)
+
+# ICC = 1 (6bin run1, 6bin run2)
+# ICC = 0.974 (6bin vs 5bin)
+# ICC = 0.932 (6bin vs 4bin)
+
+ICC(blues)

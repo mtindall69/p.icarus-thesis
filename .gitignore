@@ -3,5 +3,19 @@
 .Rproj.user/
 *.Rproj
 Blue butterflies.xlsx
+Blue offspring.xlsx
 Blue pupae.xlsx
-~$oject plan.docx
+ICC.xlsx
+blueness.csv
+segmentation_results.csv
+figs/
+forms/
+ImageJ/
+literature/
+M females/
+M males/
+mothers/
+seginput/
+segmentation_masks-butterflies/
+uv samples/
+Yinuo butterflies/

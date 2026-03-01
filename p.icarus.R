@@ -1,4 +1,4 @@
-#Polyommatus icarus project: Female polymorphism, thermal plasticity, and GxE
+#Polyommatus icarus project: data exploration
 
 #clear environments
 rm(list=ls())
@@ -327,6 +327,5 @@ ggplot(data=meanscoresbytemp, aes(x=MotherID, y=bluenesschange, fill=Temp)) +
   geom_bar(position="dodge", stat="identity")
 barplot(height=meanscoresbytemp$bluenesschange, beside=TRUE, col=c("blue","red"))
 
-#mcmcglmm - gxe interaction
 #wombat - g-matrix?
 

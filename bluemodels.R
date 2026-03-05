@@ -34,11 +34,27 @@ plot(bluedata$daughterscore, bluedata$blue_mm)
 m1 <- lmer(blue_mm ~ total_mm + temp + pop + (1|motherID), data=bluedata)
 summary(m1)
 Anova(m1)
+AIC(m1) #8523.431
 
 # Adding interactions
 # Is the interaction between temp and pop significant? 
 m2 <- lmer(blue_mm ~ total_mm + temp * pop + (1|motherID), data=bluedata)
 summary(m2)
-Anova(m1) #YES VERY SIGNIFICANT
+Anova(m2) #YES VERY SIGNIFICANT
+AIC(m2) #8408.129
 
+m3 <- lmer(blue_mm ~ total_mm * temp * pop + (1|motherID), data=bluedata)
+summary(m3)
+Anova(m3) #temp*pop YES, area*temp YES, area*pop YES, but area*temp*pop NO
+AIC(m3) #8321.624
 
+m4 <- lmer(blue_mm ~ (total_mm + temp + pop)^2 + (1 | motherID), data = bluedata)
+summary(m4)
+Anova(m4)
+AIC(m4) #8311.56 best so far, all interactions highly significant
+
+#subtract area*pop interaction
+m5 <- lmer(blue_mm ~ total_mm + temp + pop + (1 | motherID), data = bluedata)
+summary(m5)
+Anova(m5) 
+AIC(m5)

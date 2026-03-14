@@ -14,37 +14,37 @@ pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
 bluefemales = read_excel("Blue pupae.xlsx")
 blueoffspring = read_excel("Blue offspring.xlsx")
 
-#subset data into populations and temperatures, SEXES
+#subset data into regions and temperatures, SEXES
 #FEMALES
-ofemales = subset(bluefemales, MotherPop=='O')
-sfemales = subset(bluefemales, MotherPop=='S')
+ofemales = subset(bluefemales, region=='O')
+sfemales = subset(bluefemales, region=='S')
 coldfemales = subset(bluefemales, Temp=='18')
 warmfemales = subset(bluefemales, Temp=='26')
-ocold = subset(coldfemales, MotherPop=='O')
-owarm = subset(warmfemales, MotherPop=='O')
-scold = subset(coldfemales, MotherPop=='S')
-swarm = subset(warmfemales, MotherPop=='S')
+ocold = subset(coldfemales, region=='O')
+owarm = subset(warmfemales, region=='O')
+scold = subset(coldfemales, region=='S')
+swarm = subset(warmfemales, region=='S')
 
 #ALL
-ooff = subset(blueoffspring, MotherPop=='O')
-soff = subset(blueoffspring, MotherPop=='S')
+ooff = subset(blueoffspring, region=='O')
+soff = subset(blueoffspring, region=='S')
 coldoff = subset(blueoffspring, Temp=='18')
 warmoff = subset(blueoffspring, Temp=='26')
-allocold = subset(coldoff, MotherPop=='O')
-allowarm = subset(warmoff, MotherPop=='O')
-allscold = subset(coldoff, MotherPop=='S')
-allswarm = subset(warmoff, MotherPop=='S')
+allocold = subset(coldoff, region=='O')
+allowarm = subset(warmoff, region=='O')
+allscold = subset(coldoff, region=='S')
+allswarm = subset(warmoff, region=='S')
 
 #MALES
 bluemales <- subset(blueoffspring, Sex=='M')
-omales = subset(bluemales, MotherPop=='O')
-smales = subset(bluemales, MotherPop=='S')
+omales = subset(bluemales, region=='O')
+smales = subset(bluemales, region=='S')
 coldmales = subset(bluemales, Temp=='18')
 warmmales = subset(bluemales, Temp=='26')
-ocoldm = subset(coldmales, MotherPop=='O')
-owarmm = subset(warmmales, MotherPop=='O')
-scoldm = subset(coldmales, MotherPop=='S')
-swarmm = subset(warmmales, MotherPop=='S')
+ocoldm = subset(coldmales, region=='O')
+owarmm = subset(warmmales, region=='O')
+scoldm = subset(coldmales, region=='S')
+swarmm = subset(warmmales, region=='S')
 
 #================================================================
 #################################
@@ -71,7 +71,7 @@ mean(allswarm$Adult_weight_g) # 0.02022g
 mean(bluefemales$Adult_weight_g) # avg for all females is 0.02315g
 mean(ofemales$Adult_weight_g) # 0.02316g
 mean(sfemales$Adult_weight_g) # 0.02314g
-#Populations do not differ much in weight, Oland marginally larger
+#regions do not differ much in weight, Oland marginally larger
 mean(coldfemales$Adult_weight_g) # 0.02569g
 mean(warmfemales$Adult_weight_g) # 0.01912g
 #Size decreases with temp, 26 much smaller than 18
@@ -156,7 +156,7 @@ legend("topleft", legend=c("Female", "Male"), pch=20,
 
 
 
-#FOR POPS AND TEMPS
+#FOR REGIONS AND TEMPS
 
 par(mfrow=c(2,1))
 

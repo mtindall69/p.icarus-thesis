@@ -14,19 +14,22 @@ pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
 #load data
 bluefemales = read_excel("Blue pupae.xlsx")
 glimpse(bluefemales)
-#how to treat larval jar? not continuous, factor? ASK
-bluefemales$Larval_jar = as.factor(bluefemales$Larval_jar)
+# region, motherID, temp, larval jar are categorical variables
+bluefemales$region = as.factor(bluefemales$region)
+bluefemales$motherID = as.factor(bluefemales$motherID)
+bluefemales$temp = as.factor(bluefemales$temp)
+bluefemales$larval_jar = as.factor(bluefemales$larval_jar)
 
-#subset data into populations and temperatures
-ofemales = subset(bluefemales, MotherPop=='O')
-sfemales = subset(bluefemales, MotherPop=='S')
-coldfemales = subset(bluefemales, Temp=='18')
-warmfemales = subset(bluefemales, Temp=='26')
+#subset data into regions and temperatures
+ofemales = subset(bluefemales, region=='O')
+sfemales = subset(bluefemales, region=='S')
+coldfemales = subset(bluefemales, temp=='18')
+warmfemales = subset(bluefemales, temp=='26')
 
-ocold = subset(coldfemales, MotherPop=='O')
-owarm = subset(warmfemales, MotherPop=='O')
-scold = subset(coldfemales, MotherPop=='S')
-swarm = subset(warmfemales, MotherPop=='S')
+ocold = subset(coldfemales, region=='O')
+owarm = subset(warmfemales, region=='O')
+scold = subset(coldfemales, region=='S')
+swarm = subset(warmfemales, region=='S')
 
 #============================================================
 
@@ -67,20 +70,20 @@ hist(warmfemales$Blue_score, xlab="Blue Score",
      main="Blue Scores of Warm Treatment Females") # Females are browner in warm
 
 
-#Distribution colored by population- compare total distribution and temp treatments
+#Distribution colored by region- compare total distribution and temp treatments
 #cols=c("steelblue","orangered") FIX COLORS
-ggplot(bluefemales, aes(x=Blue_score, color=MotherPop)) +
+ggplot(bluefemales, aes(x=Blue_score, color=region)) +
   geom_histogram(binwidth=1) +
   theme_bw()
 
-ggplot(coldfemales, aes(x=Blue_score, color=MotherPop)) +
+ggplot(coldfemales, aes(x=Blue_score, color=region)) +
   geom_histogram(binwidth=1) +
-  ggtitle("Blue Scores in Cold Treatment by Population") +
+  ggtitle("Blue Scores in Cold Treatment by region") +
   theme_bw()
 
-ggplot(warmfemales, aes(x=Blue_score, color=MotherPop)) +
+ggplot(warmfemales, aes(x=Blue_score, color=region)) +
   geom_histogram(binwidth=1) +
-  ggtitle("Blue Scores in Warm Treatment by Population") +
+  ggtitle("Blue Scores in Warm Treatment by region") +
   theme_bw()
 
 #Side by side histograms of blue scores by pop
@@ -96,11 +99,11 @@ hist(swarm$Blue_score, xlab="Blue Score",
 par(mfrow=c(1,1))
 
 #temperature effect on blue score by pop
-# ggplot(data=bluefemales, aes(x=Temp, y=Blue_score, color=MotherPop)) +
+# ggplot(data=bluefemales, aes(x=temp, y=Blue_score, color=region)) +
 #   geom_point() +
-#   geom_line(aes(x=Temp, y=Blue_score, group=MotherID)) +
-#   labs(x="Temperature", y="Blue Score") +
-#   ggtitle("Temperature effect on Blueness by Population") +
+#   geom_line(aes(x=temp, y=Blue_score, group=MotherID)) +
+#   labs(x="temperature", y="Blue Score") +
+#   ggtitle("temperature effect on Blueness by region") +
 #   theme_bw()
 #doesn't really work
 
@@ -110,8 +113,8 @@ par(mfrow=c(1,1))
 #===========================================================
 
 bluemothers = read_excel("Blue butterflies.xlsx")
-omothers = subset(bluemothers, Population=='O')
-smothers = subset(bluemothers, Population=='S')
+omothers = subset(bluemothers, region=='O')
+smothers = subset(bluemothers, region=='S')
 
 # FECUNDITY VS BLUENESS
 plot(bluemothers$Blue_score, bluemothers$Total_Eggs,
@@ -124,7 +127,7 @@ legend("topleft", legend=c(expression(paste(beta, " = 46" %+-% "18")),
                            "p = 0.0132"))
 # 46 +/- 18 eggs per blue score, p=0.0132
 
-#by population
+#by region
 par(mfrow=c(1,2))
 
 plot(omothers$Blue_score, omothers$Total_Eggs,
@@ -158,7 +161,7 @@ legend("topleft", legend=c(expression(paste(beta, " = 2.18" %+-% "0.75")),
                            "p = 0.005"))
 # 2.18 more offspring per blue score, p=0.00499
 
-#by population
+#by region
 par(mfrow=c(1,2))
 
 plot(omothers$Blue_score, omothers$Offspring_matured,
@@ -195,14 +198,14 @@ summary(m) # Weakly positive but significant- 0.001g/bluescore
 null <- lm(Blue_score ~ 1, data=bluefemales)
 summary(null)
 
-mod <- lmer(Blue_score ~ Temp + MotherPop + (1|MotherID), data=bluefemales)
+mod <- lmer(Blue_score ~ temp + region + (1|MotherID), data=bluefemales)
 Anova(mod)
 summary(mod)
 
-# POPULATION INTERACTION EFFECT
-mod1 <- lmer(Blue_score ~ Temp * MotherPop + (1|MotherID), data=bluefemales)
+# region INTERACTION EFFECT
+mod1 <- lmer(Blue_score ~ temp * region + (1|MotherID), data=bluefemales)
 Anova(mod1)
-summary(mod1) # interaction of temp and motherpop is significant
+summary(mod1) # interaction of temp and region is significant
 plot(allEffects(mod1))
 
 #=====================================================================
@@ -210,7 +213,7 @@ plot(allEffects(mod1))
 #=====================================================================
 
 # All daughters visualized, colored by pop
-ggplot(data=bluefemales, aes(x=MotherScore, y=Blue_score, color=MotherPop)) +
+ggplot(data=bluefemales, aes(x=MotherScore, y=Blue_score, color=region)) +
     geom_point() +
     geom_jitter(width=0.3, height=0.3) +
     labs(x="Mother Score", y="Daughter Score") +
@@ -247,14 +250,14 @@ va # 1.6437
 e <- va/(mean(bluefemales$Blue_score))
 e
 
-## HERITABILITY OF BLUENESS BY TEMP
+## HERITABILITY OF BLUENESS BY temp
 meanscoresbytemp <- bluefemales %>%
-  group_by(MotherID,Temp) %>%
+  group_by(MotherID,temp) %>%
   summarise(Blue_score = mean(Blue_score), MotherScore = mean(MotherScore))
 print(n=42,meanscoresbytemp)
 meanscoresbytemp$bluenesschange <- meanscoresbytemp$Blue_score - meanscoresbytemp$MotherScore
-coldmeans <- subset(meanscoresbytemp, Temp==18)
-warmmeans <- subset(meanscoresbytemp, Temp==26)
+coldmeans <- subset(meanscoresbytemp, temp==18)
+warmmeans <- subset(meanscoresbytemp, temp==26)
 
 par(mfrow=c(1,2))
 plot(coldmeans$MotherScore, coldmeans$Blue_score, 
@@ -281,12 +284,12 @@ legend(0.75,3.1, legend=c(expression(paste(beta, " = 0.39")),
 
 ## HERITABILITY OF BLUENESS BY POP
 meanscoresbypop <- bluefemales %>%
-  group_by(MotherID,MotherPop) %>%
+  group_by(MotherID,region) %>%
   summarise(Blue_score = mean(Blue_score), MotherScore = mean(MotherScore))
 print(n=42,meanscoresbypop)
 meanscoresbypop$bluenesschange <- meanscoresbypop$Blue_score - meanscoresbypop$MotherScore
-omeans <- subset(meanscoresbypop, MotherPop=='O')
-smeans <- subset(meanscoresbypop, MotherPop=='S')
+omeans <- subset(meanscoresbypop, region=='O')
+smeans <- subset(meanscoresbypop, region=='S')
 
 plot(omeans$MotherScore, omeans$Blue_score, 
      xlim=c(1,5), ylim=c(1,5),
@@ -315,15 +318,15 @@ par(mfrow=c(1,1))
 #=====================================================================
 
 ## CHANGE IN BLUENESS BY MOTHER
-ggplot(data=meanscoresbytemp, aes(x=Temp, y=Blue_score, color=MotherID)) +
+ggplot(data=meanscoresbytemp, aes(x=temp, y=Blue_score, color=MotherID)) +
   geom_point() +
   geom_jitter(width=0.5) +
-  geom_line(aes(x=Temp, y=Blue_score, group=MotherID)) +
+  geom_line(aes(x=temp, y=Blue_score, group=MotherID)) +
   ggtitle("Change in Mean Blueness by Mother") +
   theme_bw()
 
 # Change in blueness from mother
-ggplot(data=meanscoresbytemp, aes(x=MotherID, y=bluenesschange, fill=Temp)) +
+ggplot(data=meanscoresbytemp, aes(x=MotherID, y=bluenesschange, fill=temp)) +
   geom_bar(position="dodge", stat="identity")
 barplot(height=meanscoresbytemp$bluenesschange, beside=TRUE, col=c("blue","red"))
 

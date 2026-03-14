@@ -11,7 +11,25 @@ pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
                RColorBrewer,ape,MCMCglmm)
 
 #load data
-bluefemales = read_excel("Blue pupae.xlsx")
+bluedata <- read.csv("blueness.csv")
+
+str(bluedata)
+glimpse(bluedata)
+# convert categorical variables
+bluedata$motherID = as.factor(bluedata$motherID)
+bluedata$region = as.factor(bluedata$region)
+bluedata$temp = as.factor(bluedata$temp)
+bluedata$sex = as.factor(bluedata$sex)
+bluedata$wing = as.factor(bluedata$wing)
+
+#create aggregate dataframe of averages per individual
+# avg wing area, avg blue area, avgs for forewing and hindwing
+
+
+
+#subset data
+blueFdata <- subset(bluedata, sex=="F")
+blueMdata <- subset(bluedata, sex=="M")
 
 #############################
 ## SIMULATED DATA

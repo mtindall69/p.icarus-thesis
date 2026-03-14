@@ -6,8 +6,9 @@ Blue butterflies.xlsx
 Blue offspring.xlsx
 Blue pupae.xlsx
 ICC.xlsx
+norms.xlsx
 blueness.csv
-segmentation_results.csv
+bluesum.csv
 figs/
 forms/
 ImageJ/
@@ -16,6 +17,7 @@ M females/
 M males/
 mothers/
 segmentation_masks-butterflies/
+segmentation_masks-butterfliesM/
 uv samples/
 Yinuo butterflies/
 plots/

@@ -83,6 +83,17 @@ aggregate_to_individual <- function(bluedata) {
 bluesum <- aggregate_to_individual(bluedata)
 write.csv(bluesum, "bluesum.csv", row.names = FALSE)
 
+#load aggregated data
+bluesum <- read.csv("bluesum.csv")
+glimpse(bluesum)
+
+bluesum$motherID = as.factor(bluesum$motherID)
+bluesum$region = as.factor(bluesum$region)
+bluesum$temp = as.factor(bluesum$temp)
+bluesum$sex = as.factor(bluesum$sex)
+bluesum$temp_label <- ifelse(bluesum$temp == 18, "Cold (18°C)", "Warm (26°C)")
+bluesum$region_label  <- ifelse(bluesum$region == "O", "Öland", "Skåne")
+bluesum$sex_label <- ifelse(bluesum$sex == "F", "Female", "Male")
 
 #subset data
 blueFdata <- subset(bluesum, sex=="F")
@@ -90,43 +101,102 @@ blueMdata <- subset(bluesum, sex=="M")
 
 #=======================================================================
 # sanity check, is blue score a good predictor of blue area?
-m <- lm(blue_mm ~ total_mm + daughterscore, data=blueFdata)
-summary(m) #YES
+n <- lm(avg_blue_mm ~ avg_total_mm + daughterscore, data=blueFdata)
+summary(n) #YES
 
 # adjust blue area for total area, not just prop
-plot(blueFdata$daughterscore, blueFdata$prop_blue)
+plot(blueFdata$daughterscore, blueFdata$avg_prop_blue)
+
 
 #=======================================================================
 # MODELS
 #=======================================================================
 
-# Is blueness explained by temp (plasticity), population and family (genetics)?
-m1 <- lmer(blue_mm ~ total_mm + temp + region + (1|motherID), data=blueFdata)
-summary(m1)
-Anova(m1)
-AIC(m1) #8523.431
-
+# Is blueness explained by temp (plasticity), region and family (genetics)?
+m <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + (1|motherID), data=blueFdata)
+summary(m)
+Anova(m)
+AIC(m) #2185.787
 
 
 # Adding interactions
-# Is the interaction between temp and pop significant? 
-m2 <- lmer(blue_mm ~ total_mm + temp * region + (1|motherID), data=blueFdata)
-summary(m2)
-Anova(m2) #YES VERY SIGNIFICANT
-AIC(m2) #8408.129
-plot(allEffects(m2))
-ef<-effect("temp:region", m2)
+# Is the interaction between temp and region significant? 
+m1 <- lmer(avg_blue_mm ~ avg_total_mm + temp * region + (1|motherID), data=blueFdata)
+summary(m1)
+Anova(m1) #YES temp:region VERY SIGNIFICANT
+AIC(m1) #2157.852
+plot(allEffects(m1))
+ef<-effect("temp:region", m1)
 summary(ef)
 
-# blue males
-m2b <- lmer(blue_mm ~ total_mm + temp + region + (1|motherID), data=blueMdata)
+
+#mother as fixed effect
+m2 <- lm(avg_blue_mm ~ avg_total_mm + temp * motherID, data=blueFdata)
+summary(m2)
+Anova(m2) # motherID and temp:motherID significant
+AIC(m2) #2153.591
+ef<-effect("temp:motherID", m2)
+summary(ef) # output for reaction norms
+
+
+mb <- lm(avg_blue_mm ~ avg_total_mm + temp * region + motherID, data=blueFdata)
+summary(mb)
+Anova(mb) 
+AIC(mb) #2125.188
+
+mb <- lmer(avg_blue_mm ~ avg_total_mm + temp * region + motherID + (1|motherID), data=blueFdata)
+summary(mb)
+Anova(mb) # motherID as fixed effect not significant
+AIC(mb) #1987.349
+
+mb <- lmer(avg_blue_mm ~ avg_total_mm + temp * region * motherID + (1|motherID), data=blueFdata)
+summary(mb)
+Anova(mb) # motherID nor interactions significant
+AIC(mb) #1845.377
+
+mb <- lm(avg_blue_mm ~ avg_total_mm + temp + region + temp:region + motherID 
+         + temp:motherID, data=blueFdata)
+summary(mb)
+Anova(mb) # region and temp:region not significant
+AIC(mb) #2153.591
+
+
+mb <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + motherID 
+         + temp:region + temp:motherID + (1|motherID), data=blueFdata)
+summary(mb)
+Anova(mb) 
+AIC(mb) #1845.377
+
+
+
+# MALE BLUENESS
+
+m2b <- lmer(avg_blue_mm ~ avg_total_mm + temp * region + (1|motherID), data=blueMdata)
 summary(m2b)
-Anova(m2b) # temp and pop neither significant for male blueness
+Anova(m2b) # temp significant, region not, interaction not
+AIC(m2b) #638.6096
 plot(allEffects(m2b))
 ef<-effect("temp:region", m2b)
+summary(ef)
 
-#area
-ma <- lmer(total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueFdata)
+m2b <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + (1|motherID), data=blueMdata)
+summary(m2b)
+Anova(m2b) # temp significant, region not
+AIC(m2b) #638.1577
+plot(allEffects(m2b))
+
+m2b <- lmer(avg_blue_mm ~ avg_total_mm + temp + (1|motherID), data=blueMdata)
+summary(m2b)
+Anova(m2b) # temp significant, region not
+AIC(m2b) #637.2989
+plot(allEffects(m2b))
+
+
+
+
+# AREA
+
+ma <- lmer(avg_total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueFdata)
 summary(m2b)
 Anova(ma) # temp significant to size
 plot(allEffects(ma))
@@ -134,44 +204,39 @@ ef<-effect("temp:region", ma)
 summary(ef)
 
 # area males
-m2a <- lmer(total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueMdata)
+m2a <- lmer(avg_total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueMdata)
 summary(m2a)
 Anova(m2a) # temp significant to size
 plot(allEffects(m2a))
 ef<-effect("temp:region", m2a)
 summary(ef)
 
-#mother as fixed effect
-mb <- lm(blue_mm ~ total_mm + temp * motherID, data=blueFdata)
-summary(mb)
-Anova(mb) 
-AIC(mb) #8224.183
-#plot(allEffects(mb))
-ef<-effect("temp:motherID", mb)
-summary(ef)
+
         
-#both sexes
-m3 <- lmer(blue_mm ~ total_mm + sex + temp + region + (1|motherID), data=bluedata)
+
+#BOTH SEXES
+
+m3 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + (1|motherID), data=bluesum)
 summary(m3)
 Anova(m3)
 AIC(m3)
 
-m4 <- lmer(blue_mm ~ total_mm + sex + temp * region + (1|motherID), data=bluedata)
+m4 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp * region + (1|motherID), data=bluesum)
 summary(m4)
 Anova(m4)
 AIC(m4)
 
-m5 <- lmer(blue_mm ~ total_mm + sex * temp * region + (1|motherID), data=bluedata)
+m5 <- lmer(avg_blue_mm ~ avg_total_mm + sex * temp * region + (1|motherID), data=bluesum)
 summary(m5)
 Anova(m5) #all interactions significant for blue area
 AIC(m5)
 
-m6 <- lmer(total_mm ~ sex + temp * region + (1|motherID), data=bluedata)
+m6 <- lmer(avg_total_mm ~ sex + temp * region + (1|motherID), data=bluesum)
 summary(m6)
 Anova(m6)
 AIC(m6)
 
-m7 <- lmer(total_mm ~ sex * temp * region + (1|motherID), data=bluedata)
+m7 <- lmer(avg_total_mm ~ sex * temp * region + (1|motherID), data=bluesum)
 summary(m7)
 Anova(m7) #temp*region significant for total area but other interactions NOT
 AIC(m7)

@@ -30,7 +30,7 @@ section_header <- function(title) {
   cat(rule, "\n")
 }
 
-## Print a region x Temp crosstab from ind, counting distinct values of id_col
+## Print a Region x Temp crosstab from ind, counting distinct values of id_col
 print_crosstab <- function(ind, id_col, label) {
   ct <- ind %>%
     group_by(region_label, temp_label) %>%
@@ -82,29 +82,76 @@ load_data <- function() {
   df
 }
 
+# aggregate_to_individual <- function(df) {
+#   group_cols <- c("offspringID", "motherID", "region", "region_label",
+#                   "temp", "temp_label", "sex", "sex_label", "motherscore", 
+#                   "daughterscore", "pupation_weight_g", "adult_weight_g", 
+#                   "start_day", "pupa_day", "adult_day", "pupation_length")
+#   measure_cols <- c("prop_blue", "total_mm", "blue_mm", "confidence_seg")
+# 
+#   agg <- df %>%
+#     group_by(across(all_of(group_cols))) %>%
+#     summarise(across(all_of(measure_cols), mean), .groups = "drop") %>%
+#     as.data.frame()
+# 
+#   grand_mean <- mean(agg$proportion_blue)
+#   grand_sd   <- sd(agg$proportion_blue)
+#   agg$z_blue <- (agg$proportion_blue - grand_mean) / grand_sd
+# 
+#   cat(sprintf("Z-transformation: grand mean = %.4f, grand SD = %.4f\n",
+#               grand_mean, grand_sd))
+#   cat(sprintf("  z_blue range: [%.2f, %.2f]\n\n",
+#               min(agg$z_blue), max(agg$z_blue)))
+#   agg
+# }
+
 aggregate_to_individual <- function(df) {
   group_cols <- c("offspringID", "motherID", "region", "region_label",
                   "temp", "temp_label", "sex", "sex_label", "motherscore", 
                   "daughterscore", "pupation_weight_g", "adult_weight_g", 
                   "start_day", "pupa_day", "adult_day", "pupation_length")
-  measure_cols <- c("prop_blue", "total_mm", "blue_mm", "confidence_seg")
-
-  agg <- df %>%
+  measure_cols <- c("total_mm", "blue_mm", "prop_blue")
+  
+  # Overall averages (all 4 wings)
+  agg_all <- df %>%
     group_by(across(all_of(group_cols))) %>%
-    summarise(across(all_of(measure_cols), mean), .groups = "drop") %>%
+    summarise(across(all_of(measure_cols), mean), .groups = "drop")
+  
+  # Forewing averages (FL and FR only)
+  agg_fw <- df %>%
+    filter(wing %in% c("FL", "FR")) %>%
+    group_by(across(all_of(group_cols))) %>%
+    summarise(
+      avg_fw_total_mm  = mean(total_mm,  na.rm = TRUE),
+      avg_fw_blue_mm   = mean(blue_mm,   na.rm = TRUE),
+      avg_fw_prop_blue = mean(prop_blue, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Hindwing averages (HL and HR only)
+  agg_hw <- df %>%
+    filter(wing %in% c("HL", "HR")) %>%
+    group_by(across(all_of(group_cols))) %>%
+    summarise(
+      avg_hw_total_mm  = mean(total_mm,  na.rm = TRUE),
+      avg_hw_blue_mm   = mean(blue_mm,   na.rm = TRUE),
+      avg_hw_prop_blue = mean(prop_blue, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # Join all three together
+  agg <- agg_all %>%
+    left_join(agg_fw, by = group_cols) %>%
+    left_join(agg_hw, by = group_cols) %>%
+    rename(
+      avg_total_mm  = total_mm,
+      avg_blue_mm   = blue_mm,
+      avg_prop_blue = prop_blue
+    ) %>%
     as.data.frame()
-
-  grand_mean <- mean(agg$proportion_blue)
-  grand_sd   <- sd(agg$proportion_blue)
-  agg$z_blue <- (agg$proportion_blue - grand_mean) / grand_sd
-
-  cat(sprintf("Z-transformation: grand mean = %.4f, grand SD = %.4f\n",
-              grand_mean, grand_sd))
-  cat(sprintf("  z_blue range: [%.2f, %.2f]\n\n",
-              min(agg$z_blue), max(agg$z_blue)))
+  
   agg
 }
-
 
 # ── 2. Sample summary ───────────────────────────────────────────────────────
 
@@ -117,11 +164,11 @@ print_sample_summary <- function(ind) {
   print_crosstab(ind, "offspringID", "Offspring per Region × Temperature:")
   print_crosstab(ind, "motherID", "Mothers represented per Region × Temperature:")
 
-  cat("Z-scored blueness summary by group:\n")
+  cat("Proportional blueness summary by group:\n")
   summ <- ind %>%
     group_by(region_label, temp_label) %>%
-    summarise(N = n(), Mean = mean(z_blue), SD = sd(z_blue),
-              Median = median(z_blue), .groups = "drop") %>%
+    summarise(N = n(), Mean = mean(avg_prop_blue), SD = sd(avg_prop_blue),
+              Median = median(avg_prop_blue), .groups = "drop") %>%
     arrange(region_label, temp_label) %>%
     as.data.frame()
   for (i in seq_len(nrow(summ))) {
@@ -136,12 +183,12 @@ print_sample_summary <- function(ind) {
 # ── 3. Mixed models ─────────────────────────────────────────────────────────
 
 run_mixed_models <- function(ind) {
-  section_header("LINEAR MIXED MODEL: z_blue ~ temp * region + (1|motherID)")
+  section_header("LINEAR MIXED MODEL: avg_blue_mm ~ avg_total_mm + temp * region + (1|motherID)")
 
   ind$temp_f <- relevel(factor(ind$temp), ref = "26")
   ind$region_f  <- relevel(factor(ind$region), ref = "S")
 
-  m1 <- lmer(z_blue ~ temp_f * region_f + (1 | motherID), data = ind, REML = TRUE)
+  m1 <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 | motherID), data = ind, REML = TRUE)
   cat("\nRandom-intercept model summary:\n")
   print(summary(m1))
   cat("\n")
@@ -158,15 +205,15 @@ run_mixed_models <- function(ind) {
   section_header("GxE TEST: random slope for temperature")
 
   tryCatch({
-    m2 <- lmer(z_blue ~ temp_f * region_f + (1 + temp_f | motherID),
+    m2 <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 + temp_f | motherID),
                data = ind, REML = TRUE)
     cat("\nRandom-slope model summary:\n")
     print(summary(m2))
     cat("\n")
 
-    m1_ml <- lmer(z_blue ~ temp_f * region_f + (1 | motherID),
+    m1_ml <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 | motherID),
                   data = ind, REML = FALSE)
-    m2_ml <- lmer(z_blue ~ temp_f * region_f + (1 + temp_f | motherID),
+    m2_ml <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 + temp_f | motherID),
                   data = ind, REML = FALSE)
 
     lr_stat <- as.numeric(-2 * (logLik(m1_ml) - logLik(m2_ml)))
@@ -300,14 +347,14 @@ gibbs_mother_daughter <- function(y, motherscore, mother_idx,
 
 run_bayesian_mother_daughter <- function(ind) {
   section_header("BAYESIAN MOTHER-DAUGHTER REGRESSION (individual daughters, Gibbs)")
-  cat("Model: z_blue_ij = α + β·motherscore_j + u_j + ε_ij\n")
+  cat("Model: avg_blue_mm_ij = α + β·motherscore_j + u_j + ε_ij\n")
   cat("       u_j ~ N(0, σ²_u),  ε_ij ~ N(0, σ²_e)\n")
   cat("       Weakly informative priors, 15000 iterations, 5000 burn-in\n\n")
 
   results <- list()
   for (temp_label in TEMP_LABELS) {
     sub <- ind[ind$temp_label == temp_label, ]
-    res <- gibbs_mother_daughter(sub$z_blue, as.numeric(sub$motherscore), sub$motherID)
+    res <- gibbs_mother_daughter(sub$avg_prop_blue, as.numeric(sub$motherscore), sub$motherID)
 
     alpha_post  <- res$beta[, 1]
     beta_post   <- res$beta[, 2]
@@ -363,7 +410,7 @@ run_tobit_mother_daughter <- function(ind) {
 
   for (temp_label in TEMP_LABELS) {
     sub <- ind[ind$temp_label == temp_label, ]
-    n_cens <- sum(sub$proportion_blue <= 0.005)
+    n_cens <- sum(sub$avg_prop_blue <= 0.005)
     cat(sprintf("  %s: %d/%d censored at floor (%.1f%%)\n",
                 temp_label, n_cens, nrow(sub), n_cens / nrow(sub) * 100))
   }
@@ -372,7 +419,7 @@ run_tobit_mother_daughter <- function(ind) {
   results <- list()
   for (temp_label in TEMP_LABELS) {
     sub <- ind[ind$temp_label == temp_label, ]
-    res <- gibbs_mother_daughter(sub$proportion_blue, as.numeric(sub$motherscore),
+    res <- gibbs_mother_daughter(sub$avg_prop_blue, as.numeric(sub$motherscore),
                                  sub$motherID, censor_thresh = 0.005)
 
     alpha_post  <- res$beta[, 1]
@@ -415,13 +462,13 @@ run_tobit_mother_daughter <- function(ind) {
 # ── 5. Variance decomposition by temperature ────────────────────────────────
 
 variance_decomposition_by_temp <- function(ind) {
-  section_header("VARIANCE DECOMPOSITION BY TEMPERATURE (z-scaled)")
+  section_header("VARIANCE DECOMPOSITION BY TEMPERATURE")
 
   results <- list()
   for (temp_label in TEMP_LABELS) {
     subset_df <- ind[ind$temp_label == temp_label, ]
     subset_df$region_f <- relevel(factor(subset_df$region), ref = "S")
-    m <- lmer(z_blue ~ region_f + (1 | motherID), data = subset_df, REML = TRUE)
+    m <- lmer(avg_blue_mm ~ avg_total_mm + region_f + (1 | motherID), data = subset_df, REML = TRUE)
 
     vc <- as.data.frame(VarCorr(m))
     var_mother <- vc$vcov[vc$grp == "motherID"]
@@ -455,9 +502,9 @@ fig1_temp_region_violin <- function(ind) {
   # Compute means and SEs for diamonds
   summ <- ind %>%
     group_by(region_label, temp_label) %>%
-    summarise(m = mean(z_blue), se = sd(z_blue) / sqrt(n()), .groups = "drop")
+    summarise(m = mean(avg_prop_blue), se = sd(avg_prop_blue) / sqrt(n()), .groups = "drop")
 
-  p <- ggplot(ind, aes(x = region_label, y = z_blue, fill = temp_label)) +
+  p <- ggplot(ind, aes(x = region_label, y = avg_prop_blue, fill = temp_label)) +
     geom_violin(alpha = 0.3, position = position_dodge(width = 0.8),
                 trim = TRUE, scale = "width", colour = NA) +
     geom_jitter(aes(colour = temp_label),
@@ -471,7 +518,7 @@ fig1_temp_region_violin <- function(ind) {
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
     scale_fill_manual(values = PAL_TEMP) +
     scale_colour_manual(values = PAL_TEMP) +
-    labs(x = "region", y = "Wing blueness (z-score)",
+    labs(x = "region", y = "Proportion blue",
          title = "Wing blueness by region and temperature",
          fill = "Temperature") +
     theme_classic() +
@@ -489,7 +536,7 @@ fig1_temp_region_violin <- function(ind) {
 fig2_reaction_norms <- function(ind) {
   fam_means <- ind %>%
     group_by(motherID, region_label, temp_label) %>%
-    summarise(mean_blue = mean(z_blue), n = n_distinct(offspringID), .groups = "drop")
+    summarise(mean_blue = mean(avg_prop_blue), n = n_distinct(offspringID), .groups = "drop")
 
   fam_both <- fam_means %>%
     group_by(motherID) %>%
@@ -517,7 +564,7 @@ fig2_reaction_norms <- function(ind) {
     scale_colour_manual(values = PAL_region) +
     scale_x_discrete(expand = expansion(mult = 0.1)) +
     labs(x = "Temperature treatment",
-         y = "Wing blueness (z-score, family mean)",
+         y = "Wing blueness (proportion, family mean)",
          title = "Reaction norms: family-level response to temperature",
          colour = "region") +
     theme_classic() +
@@ -563,14 +610,14 @@ fig3_bayesian_mother_daughter <- function(bayes_results) {
     ann_label <- sprintf("β = %.3f\n95%% CI [%.3f, %.3f]",
                          beta_mean, beta_ci[1], beta_ci[2])
 
-    p_scatter <- ggplot(sub, aes(x = motherscore, y = z_blue)) +
+    p_scatter <- ggplot(sub, aes(x = motherscore, y = avg_prop_blue)) +
       geom_point(aes(colour = region_label), alpha = 0.4, size = 1.2) +
       geom_ribbon(data = line_df, aes(x = x, ymin = lo, ymax = hi),
                   inherit.aes = FALSE, fill = "gray", alpha = 0.25) +
       geom_line(data = line_df, aes(x = x, y = y),
                 inherit.aes = FALSE, colour = "black", linewidth = 1) +
       geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
-      annotate("label", x = 1.7, y = max(sub$z_blue) * 0.95,
+      annotate("label", x = 1.7, y = max(sub$avg_prop_blue) * 0.95,
                label = ann_label, hjust = 0, vjust = 1, size = 3,
                fill = "white", label.size = 0.3) +
       scale_colour_manual(values = PAL_region) +
@@ -582,7 +629,7 @@ fig3_bayesian_mother_daughter <- function(bayes_results) {
       theme(plot.title = element_text(face = "bold", hjust = 0.5, colour = PAL_TEMP[temp_label]))
 
     if (col == 1) {
-      p_scatter <- p_scatter + labs(y = "Daughter wing blueness (z-score)") +
+      p_scatter <- p_scatter + labs(y = "Daughter wing blueness (%)") +
         theme(legend.position = "inside",
               legend.position.inside = c(0.8, 0.15),
               legend.background = element_rect(colour = "grey80"),
@@ -660,12 +707,12 @@ fig4_developmental_traits <- function(ind) {
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 9))
 
-  p3 <- ggplot(ind, aes(x = total_mm, y = z_blue, colour = temp_label)) +
+  p3 <- ggplot(ind, aes(x = total_mm, y = avg_blue_mm, colour = temp_label)) +
     geom_point(alpha = 0.35, size = 1) +
     geom_smooth(method = "lm", se = FALSE, linewidth = 1, alpha = 0.8) +
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
     scale_colour_manual(values = PAL_TEMP) +
-    labs(x = "Total wing area (mm²)", y = "Wing blueness (z-score)",
+    labs(x = "Total wing area (mm²)", y = "Wing blue area (mm²)",
          title = "C) Wing size vs. blueness", colour = "Temperature") +
     theme_classic() +
     theme(plot.title = element_text(face = "bold", hjust = 0.5),
@@ -713,7 +760,7 @@ fig5_variance_decomposition <- function(var_results) {
               colour = "white", fontface = "bold", size = 4) +
     scale_fill_manual(values = c("Within-mother (residual)" = "#AAAAAA",
                                  "Among-mother (genetic + maternal)" = "#2CA02C")) +
-    labs(x = "", y = "Variance in z-scored blueness",
+    labs(x = "", y = "Variance in proportion blueness",
          title = "Variance decomposition by temperature",
          fill = "") +
     theme_classic() +
@@ -734,7 +781,7 @@ fig6_floor_effect_tobit <- function(ind, naive_results, tobit_results) {
   censor_thresh <- 0.005
 
   # Panel A: Observed distribution
-  p_hist <- ggplot(ind, aes(x = proportion_blue, fill = temp_label)) +
+  p_hist <- ggplot(ind, aes(x = avg_prop_blue, fill = temp_label)) +
     geom_histogram(aes(y = after_stat(density)),
                    bins = 40, alpha = 0.5, position = "identity",
                    colour = "white", linewidth = 0.2) +
@@ -754,7 +801,7 @@ fig6_floor_effect_tobit <- function(ind, naive_results, tobit_results) {
   latent_list <- lapply(TEMP_LABELS, function(tl) {
     tres <- tobit_results[[tl]]
     data.frame(
-      value = c(tres$data$proportion_blue[!tres$is_censored], tres$y_star_cens_mean),
+      value = c(tres$data$avg_prop_blue[!tres$is_censored], tres$y_star_cens_mean),
       temp_label = tl
     )
   })
@@ -829,6 +876,8 @@ fig6_floor_effect_tobit <- function(ind, naive_results, tobit_results) {
 main <- function() {
   df  <- load_data()
   ind <- aggregate_to_individual(df)
+  #subset ind for sexes
+  ind <- subset(ind, sex=="F")
 
   print_sample_summary(ind)
   run_mixed_models(ind)

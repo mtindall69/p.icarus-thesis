@@ -216,27 +216,60 @@ summary(ef)
 
 #BOTH SEXES
 
+#Blueness
 m3 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + (1|motherID), data=bluesum)
 summary(m3)
 Anova(m3)
-AIC(m3)
+AIC(m3) #3244.193
 
 m4 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp * region + (1|motherID), data=bluesum)
 summary(m4)
-Anova(m4)
-AIC(m4)
+Anova(m4) # temp:region significant
+AIC(m4) #3229.128
 
 m5 <- lmer(avg_blue_mm ~ avg_total_mm + sex * temp * region + (1|motherID), data=bluesum)
 summary(m5)
+Anova(m5) # sex:temp and sex:temp:region not significant
+AIC(m5) #3138.222
+
+m5 <- lmer(avg_blue_mm ~ avg_total_mm * sex * temp * region + (1|motherID), data=bluesum)
+summary(m5)
+Anova(m5) # avg_total_mm:temp:region and avg_total_mm:sex:temp:region not significant
+AIC(m5) #2995.347
+
+m5 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + 
+             avg_total_mm:sex + avg_total_mm:temp + avg_total_mm:region +
+             sex:temp + sex:region + temp:region +
+             sex:temp:region + avg_total_mm:sex:region +
+             (1|motherID), data=bluesum)
+summary(m5)
 Anova(m5) #all interactions significant for blue area
-AIC(m5)
+AIC(m5) #2985.876
 
-m6 <- lmer(avg_total_mm ~ sex + temp * region + (1|motherID), data=bluesum)
+m5 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + 
+             avg_total_mm:sex + avg_total_mm:temp + avg_total_mm:region +
+             sex:temp + sex:region + temp:region +
+             sex:temp:region + (1|motherID), data=bluesum)
+summary(m5)
+Anova(m5) #all interactions significant for blue area
+AIC(m5) #2986.796
+
+m5 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + 
+             avg_total_mm:sex + avg_total_mm:temp + avg_total_mm:region +
+             sex:temp + sex:region + temp:region + (1|motherID), data=bluesum)
+summary(m5)
+Anova(m5) #all interactions significant for blue area
+AIC(m5) #2997.341
+
+
+#Area
+m6 <- lmer(avg_total_mm ~ sex * temp * region + (1|motherID), data=bluesum)
 summary(m6)
-Anova(m6)
-AIC(m6)
+Anova(m6)#temp:region significant for total area but other interactions NOT
+AIC(m6) #3679.995
 
-m7 <- lmer(avg_total_mm ~ sex * temp * region + (1|motherID), data=bluesum)
+m7 <- lmer(avg_total_mm ~ sex + temp * region + (1|motherID), data=bluesum)
 summary(m7)
-Anova(m7) #temp*region significant for total area but other interactions NOT
-AIC(m7)
+Anova(m7) 
+AIC(m7) #3686.801
+

@@ -206,21 +206,141 @@ legend("bottomright", legend=c(expression(paste(beta, " = 0.43")),"p < 0.01"))
 
 par(mfrow=c(1,1))
 
+
 #=========================================================
 # Mixed Models - 
 # IS THERE A METABOLIC COST TO PRODUCE DIFFERENT COLORS?
 #=========================================================
 
-mw <- lmer(Adult_weight_g ~ Pupation_weight_g * Temp * Blue_score + (1|MotherID), 
-           data=bluefemales)
+#load aggregated data
+bluesum <- read.csv("bluesum.csv")
+glimpse(bluesum)
+
+bluesum$motherID = as.factor(bluesum$motherID)
+bluesum$region = as.factor(bluesum$region)
+bluesum$temp = as.factor(bluesum$temp)
+bluesum$sex = as.factor(bluesum$sex)
+bluesum$temp_label <- ifelse(bluesum$temp == 18, "Cold (18°C)", "Warm (26°C)")
+bluesum$region_label  <- ifelse(bluesum$region == "O", "Öland", "Skåne")
+bluesum$sex_label <- ifelse(bluesum$sex == "F", "Female", "Male")
+
+#subset data
+blueFdata <- subset(bluesum, sex=="F")
+blueMdata <- subset(bluesum, sex=="M")
+#======================================================================
+
+# Do blue or brown lose more weight?
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g + temp + daughterscore + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #daughter score NOT significant
+plot(allEffects(mw))
+summary(effect("daughterscore", mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g + temp + avg_prop_blue + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #prop blueness NOT significant
+plot(allEffects(mw))
+summary(effect("avg_prop_blue", mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * temp * daughterscore + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #daughter score NOT significant, pupation_weight:daughterscore IS
+plot(allEffects(mw))
+summary(effect("daughterscore", mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * temp * avg_prop_blue + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #prop blueness NOT significant nor any interactions
+plot(allEffects(mw))
+summary(effect("avg_prop_blue", mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g + temp * daughterscore + (1|motherID), 
+           data=blueFdata)
 summary(mw)
 Anova(mw)
-plot(allEffects(mw)) # scores do not seem to lose different weights BUT
-# Blue score is significant p=0.0115, interaction is not?
-#summary(effect(Blue_score, mw)) #doesn't work?
+plot(allEffects(mw))
+summary(effect("daughterscore", mw))
 
-mw2 <- lmer(Adult_weight_g ~ Pupation_weight_g + Temp + Blue_score + 
-              Pupation_weight_g:Temp + Pupation_weight_g:Blue_score + 
-              (1|MotherID), data=bluefemales)
+mw <- lmer(adult_weight_g ~ pupation_weight_g + temp * avg_prop_blue + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw)
+plot(allEffects(mw))
+summary(effect("avg_prop_blue", mw))
+
+
+mw2 <- lmer(adult_weight_g ~ pupation_weight_g + temp + daughterscore + 
+              pupation_weight_g:temp + pupation_weight_g:daughterscore + 
+              (1|motherID), data=blueFdata)
 summary(mw2)
-Anova(mw2)
+Anova(mw2) # daughterscore NOT significant, interactions are
+
+mw2 <- lmer(adult_weight_g ~ pupation_weight_g + temp + avg_prop_blue + 
+              pupation_weight_g:temp + pupation_weight_g:avg_prop_blue + 
+              (1|motherID), data=blueFdata)
+summary(mw2)
+Anova(mw2) # avg_prop_blue NOT significant nor any interactions
+
+
+# Do regions differ in weight loss? 
+mw <- lmer(adult_weight_g ~ pupation_weight_g * temp * region + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #temp:region significant but region is not
+plot(allEffects(mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g + temp * region + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #temp:region significant but region is not
+plot(allEffects(mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g + temp + region + (1|motherID), 
+           data=blueFdata)
+summary(mw)
+Anova(mw) #region NOT significant
+plot(allEffects(mw))
+
+
+#Do sexes differ in weight loss?
+mw <- lmer(adult_weight_g ~ pupation_weight_g * sex + (1|motherID), 
+           data=bluesum)
+summary(mw)
+Anova(mw) # sex significant, pupation_weight:sex weakly significant
+plot(allEffects(mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * sex + temp + (1|motherID), 
+           data=bluesum)
+summary(mw)
+Anova(mw) # YES
+plot(allEffects(mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * sex * temp + (1|motherID), 
+           data=bluesum)
+summary(mw)
+Anova(mw) # no interactions significant
+plot(allEffects(mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * sex * region + temp + (1|motherID), 
+           data=bluesum)
+summary(mw)
+Anova(mw) 
+plot(allEffects(mw))
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * sex * temp * region + (1|motherID), 
+           data=bluesum)
+summary(mw)
+Anova(mw)
+plot(allEffects(mw))
+
+
+mw <- lmer(adult_weight_g ~ pupation_weight_g * sex + temp * region + (1|motherID), 
+           data=bluesum)
+summary(mw)
+Anova(mw) # All effects significant
+plot(allEffects(mw)) # pupation weight:sex and temp:region interactions significant

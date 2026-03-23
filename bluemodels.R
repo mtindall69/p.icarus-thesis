@@ -267,9 +267,40 @@ m6 <- lmer(avg_total_mm ~ sex * temp * region + (1|motherID), data=bluesum)
 summary(m6)
 Anova(m6)#temp:region significant for total area but other interactions NOT
 AIC(m6) #3679.995
+plot(allEffects(m6))
 
 m7 <- lmer(avg_total_mm ~ sex + temp * region + (1|motherID), data=bluesum)
 summary(m7)
 Anova(m7) 
 AIC(m7) #3686.801
+plot(allEffects(m7))
 
+
+
+#================================================================
+# VISUALIZATION
+#================================================================
+
+plot(blueFdata$motherscore, blueFdata$avg_prop_blue)
+
+plot(blueFdata$avg_total_mm, blueFdata$avg_blue_mm)
+#total 
+t <- lm(avg_blue_mm ~ avg_total_mm, data=blueFdata)
+abline(t)
+#temps
+WFdata <- subset(blueFdata, temp =="26") 
+CFdata <- subset(blueFdata, temp =="18")
+w <- lm(avg_blue_mm ~ avg_total_mm, data=WFdata)
+c <- lm(avg_blue_mm ~ avg_total_mm, data=CFdata)
+plot(blueFdata$avg_total_mm, blueFdata$avg_blue_mm, col=ifelse(blueFdata$temp == 26, "red", "blue"))
+abline(w, col="red")
+abline(c, col="blue")
+
+#regions
+OFdata <- subset(blueFdata, region =="O")
+SFdata <- subset(blueFdata, region =="S")
+o <- lm(avg_blue_mm ~ avg_total_mm, data=OFdata)
+s <- lm(avg_blue_mm ~ avg_total_mm, data=SFdata)
+plot(blueFdata$avg_total_mm, blueFdata$avg_blue_mm, col=ifelse(blueFdata$region == "O", "purple", "green"))
+abline(o, col="purple")
+abline(s, col="green")

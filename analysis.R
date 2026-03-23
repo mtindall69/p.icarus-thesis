@@ -3,6 +3,7 @@
 ##
 ## R port of analysis.py — produces equivalent console output and plots.
 
+
 suppressPackageStartupMessages({
   library(lme4)
   library(ggplot2)
@@ -11,6 +12,9 @@ suppressPackageStartupMessages({
   library(grid)
   library(gridExtra)
 })
+
+setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis")
+rm(list = ls())
 
 PLOT_DIR <- file.path("plots")
 dir.create(PLOT_DIR, showWarnings = FALSE, recursive = TRUE)
@@ -250,7 +254,7 @@ gibbs_mother_daughter <- function(y, motherscore, mother_idx,
   unique_mothers <- sort(unique(mother_idx))
   J <- length(unique_mothers)
   mom_map <- setNames(seq_along(unique_mothers), unique_mothers)
-  mom_int <- mom_map[mother_idx]
+  mom_int <- mom_map[as.character(mother_idx)]
 
   X <- cbind(1, motherscore)
   p <- ncol(X)
@@ -518,7 +522,7 @@ fig1_temp_region_violin <- function(ind) {
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
     scale_fill_manual(values = PAL_TEMP) +
     scale_colour_manual(values = PAL_TEMP) +
-    labs(x = "region", y = "Proportion blue",
+    labs(x = "Region", y = "Proportion blue",
          title = "Wing blueness by region and temperature",
          fill = "Temperature") +
     theme_classic() +
@@ -561,7 +565,7 @@ fig2_reaction_norms <- function(ind) {
                aes(x = temp_label, y = mean_blue, colour = region_label),
                size = 4, shape = 15, stroke = 1) +
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
-    scale_colour_manual(values = PAL_region) +
+    scale_colour_manual(values = PAL_REGION) +
     scale_x_discrete(expand = expansion(mult = 0.1)) +
     labs(x = "Temperature treatment",
          y = "Wing blueness (proportion, family mean)",
@@ -620,7 +624,7 @@ fig3_bayesian_mother_daughter <- function(bayes_results) {
       annotate("label", x = 1.7, y = max(sub$avg_prop_blue) * 0.95,
                label = ann_label, hjust = 0, vjust = 1, size = 3,
                fill = "white", label.size = 0.3) +
-      scale_colour_manual(values = PAL_region) +
+      scale_colour_manual(values = PAL_REGION) +
       scale_x_continuous(breaks = 2:5) +
       labs(x = "Mother blueness score",
            title = temp_label,
@@ -707,7 +711,7 @@ fig4_developmental_traits <- function(ind) {
           legend.text = element_text(size = 8),
           legend.title = element_text(size = 9))
 
-  p3 <- ggplot(ind, aes(x = total_mm, y = avg_blue_mm, colour = temp_label)) +
+  p3 <- ggplot(ind, aes(x = avg_total_mm, y = avg_blue_mm, colour = temp_label)) +
     geom_point(alpha = 0.35, size = 1) +
     geom_smooth(method = "lm", se = FALSE, linewidth = 1, alpha = 0.8) +
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +

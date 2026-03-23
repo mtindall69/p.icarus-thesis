@@ -279,12 +279,21 @@ mw2 <- lmer(adult_weight_g ~ pupation_weight_g + temp + daughterscore +
               (1|motherID), data=blueFdata)
 summary(mw2)
 Anova(mw2) # daughterscore NOT significant, interactions are
+plot(allEffects(mw2))
 
 mw2 <- lmer(adult_weight_g ~ pupation_weight_g + temp + avg_prop_blue + 
               pupation_weight_g:temp + pupation_weight_g:avg_prop_blue + 
               (1|motherID), data=blueFdata)
 summary(mw2)
 Anova(mw2) # avg_prop_blue NOT significant nor any interactions
+plot(allEffects(mw2))
+
+mw2 <- lmer(adult_weight_g ~ pupation_weight_g + temp + avg_prop_blue + 
+              pupation_weight_g:temp + pupation_weight_g:avg_prop_blue + 
+              temp:avg_prop_blue + (1|motherID), data=blueFdata)
+summary(mw2)
+Anova(mw2) # avg_prop_blue NOT significant nor any interactions
+plot(allEffects(mw2))
 
 
 # Do regions differ in weight loss? 

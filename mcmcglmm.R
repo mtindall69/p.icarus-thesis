@@ -15,10 +15,10 @@ bluesum <- read.csv("bluesum.csv")
 
 str(bluesum)
 # convert categorical variables
-bluedata$motherID = as.factor(bluedata$motherID)
-bluedata$region = as.factor(bluedata$region)
-bluedata$temp = as.factor(bluedata$temp)
-bluedata$sex = as.factor(bluedata$sex)
+bluesum$motherID = as.character(bluesum$motherID)
+bluesum$region = as.factor(bluesum$region)
+bluesum$temp = as.factor(bluesum$temp)
+bluesum$sex = as.factor(bluesum$sex)
 
 #subset data
 blueFdata <- subset(bluesum, sex=="F")
@@ -261,7 +261,7 @@ prior <- list(
 # 4. Fit Animal Model
 ##############################################
 model <- MCMCglmm(
-  Blueness ~ TotalArea + Temperature * Region,
+  Blueness ~ TotalArea + Temperature + Region + TotalArea:Temperature + Temperature:Region,
   random = ~ animal + MotherID + idh(Temperature):animal,
   pedigree = pedigree,
   data = data,
@@ -319,6 +319,11 @@ plot_posterior <- function(samples, title, xlab){
              label = paste0("Mean = ", round(mean(samples), 3)), 
              hjust = -0.1, color = "red")
 }
+
+# CHECK FOR COVERGENCE
+plot(model$Sol)
+plot(model$VCV)
+
 
 # Plot VA
 p <- plot_posterior(VA, "Posterior of Additive Genetic Variance (VA)", "VA")

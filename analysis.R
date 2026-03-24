@@ -187,12 +187,12 @@ print_sample_summary <- function(ind) {
 # ── 3. Mixed models ─────────────────────────────────────────────────────────
 
 run_mixed_models <- function(ind) {
-  section_header("LINEAR MIXED MODEL: avg_blue_mm ~ avg_total_mm + temp * region + (1|motherID)")
+  section_header("LINEAR MIXED MODEL: avg_blue_mm ~ avg_total_mm + temp + region + avg_total_mm:temp + temp:region + (1|motherID)")
 
   ind$temp_f <- relevel(factor(ind$temp), ref = "26")
   ind$region_f  <- relevel(factor(ind$region), ref = "S")
 
-  m1 <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 | motherID), data = ind, REML = TRUE)
+  m1 <- lmer(avg_blue_mm ~ avg_total_mm + temp_f + region_f + avg_total_mm:temp_f + temp_f:region + (1 | motherID), data = ind, REML = TRUE)
   cat("\nRandom-intercept model summary:\n")
   print(summary(m1))
   cat("\n")
@@ -209,15 +209,15 @@ run_mixed_models <- function(ind) {
   section_header("GxE TEST: random slope for temperature")
 
   tryCatch({
-    m2 <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 + temp_f | motherID),
+    m2 <- lmer(avg_blue_mm ~ avg_total_mm + temp_f + region_f + avg_total_mm:temp_f + temp_f:region + (1 + temp_f | motherID),
                data = ind, REML = TRUE)
     cat("\nRandom-slope model summary:\n")
     print(summary(m2))
     cat("\n")
 
-    m1_ml <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 | motherID),
+    m1_ml <- lmer(avg_blue_mm ~ avg_total_mm + temp_f + region_f + avg_total_mm:temp_f + temp_f:region + (1 | motherID),
                   data = ind, REML = FALSE)
-    m2_ml <- lmer(avg_blue_mm ~ avg_total_mm + temp_f * region_f + (1 + temp_f | motherID),
+    m2_ml <- lmer(avg_blue_mm ~ avg_total_mm + temp_f + region_f + avg_total_mm:temp_f + temp_f:region + (1 + temp_f | motherID),
                   data = ind, REML = FALSE)
 
     lr_stat <- as.numeric(-2 * (logLik(m1_ml) - logLik(m2_ml)))

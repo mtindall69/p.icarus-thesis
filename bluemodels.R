@@ -129,6 +129,14 @@ plot(allEffects(m1))
 ef<-effect("temp:region", m1)
 summary(ef)
 
+#Add areaxtemp interaction - Friberg et al (2025)
+m1 <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + avg_total_mm:temp + 
+             temp:region + (1|motherID), data=blueFdata)
+summary(m1)
+Anova(m1) # ALL VERY SIGNIFICANT
+AIC(m1) #2147.6
+plot(allEffects(m1))
+
 
 #mother as fixed effect
 m2 <- lm(avg_blue_mm ~ avg_total_mm + temp * motherID, data=blueFdata)

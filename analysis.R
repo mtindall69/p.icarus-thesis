@@ -113,7 +113,7 @@ aggregate_to_individual <- function(df) {
   group_cols <- c("offspringID", "motherID", "region", "region_label",
                   "temp", "temp_label", "sex", "sex_label", "motherscore", 
                   "daughterscore", "pupation_weight_g", "adult_weight_g", 
-                  "start_day", "pupa_day", "adult_day", "pupation_length")
+                  "start_day", "pupa_day", "adult_day", "pupation_length", "dev_length")
   measure_cols <- c("total_mm", "blue_mm", "prop_blue")
   
   # Overall averages (all 4 wings)
@@ -698,11 +698,11 @@ fig4_developmental_traits <- function(ind) {
     theme_classic() +
     theme(plot.title = element_text(face = "bold", hjust = 0.5))
 
-  p2 <- ggplot(ind, aes(x = region_label, y = pupation_length, fill = temp_label)) +
+  p2 <- ggplot(ind, aes(x = region_label, y = pupation_weight_g, fill = temp_label)) +
     geom_boxplot(outlier.size = 1, linewidth = 0.5) +
     scale_fill_manual(values = PAL_TEMP) +
-    labs(x = "Region", y = "Pupation duration (days)",
-         title = "B) Development time", fill = "Temperature") +
+    labs(x = "Region", y = "Pupation weight (g)",
+         title = "B) Pupal size", fill = "Temperature") +
     theme_classic() +
     theme(plot.title = element_text(face = "bold", hjust = 0.5),
           legend.position = "inside",

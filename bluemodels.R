@@ -36,7 +36,7 @@ aggregate_to_individual <- function(bluedata) {
   group_cols <- c("offspringID", "motherID", "region", "region_label",
                   "temp", "temp_label", "sex", "sex_label", "motherscore", 
                   "daughterscore", "pupation_weight_g", "adult_weight_g", 
-                  "start_day", "pupa_day", "adult_day", "pupation_length")
+                  "start_day", "pupa_day", "adult_day", "pupation_length", "dev_length")
   measure_cols <- c("total_mm", "blue_mm", "prop_blue")
   
   # Overall averages (all 4 wings)

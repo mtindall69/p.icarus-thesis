@@ -63,7 +63,6 @@ mothers <- blueFdata %>%
   ) %>%
   select(animal, MotherID, Temperature, Region, TotalArea, Blueness)
 
-data_full <- rbind(data, mothers)
 
 ##############################################
 # 2. Create Pedigree
@@ -81,30 +80,30 @@ prior <- list(
   G = list(
     G1 = list(V = 1, nu = 0.002),  # Animal (VA)
     G2 = list(V = 1, nu = 0.002),  # MotherID (maternal)
-    G3 = list(V = diag(2), nu = 0.002) # GxE for Temperature
-    #G4 = list(V = diag(2), nu = 0.002)
+    G3 = list(V = diag(2), nu = 0.002), # GxE for Temperature
+    G4 = list(V = diag(2), nu = 0.002)
   ),
   R = list(V = 1, nu = 0.002)      # Residual
 )
 
 ##############################################
-# 4. Fit Animal Model  + idh(Region):animal
+# 4. Fit Animal Model
 ##############################################
 model <- MCMCglmm(
   Blueness ~ TotalArea + Temperature + Region + TotalArea:Temperature + Temperature:Region,
-  random = ~ animal + MotherID + idh(Temperature):animal,
+  random = ~ animal + MotherID + idh(Temperature):animal + idh(Region):animal,
   pedigree = pedigree,
   data = data,
-  family = "gaussian",
+  family = "exponential",
   prior = prior,
   nitt = 130000, burnin = 30000, thin = 100
 )
 
-summary(model)
+summary(model) # intercept and temp returning nonsignificant
 
 # CHECK FOR COVERGENCE
 plot(model$Sol)
-plot(model$VCV)
+plot(model$VCV) # does not converge
 
 ##############################################
 # 5. Extract Genetic Parameters

@@ -353,11 +353,11 @@ p1 <- ggplot(blueFwings, aes(x = aTWA, y = aTBWA, colour = temp_label)) +
   geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
   scale_colour_manual(values = PAL_TEMP) +
   labs(x = "Total wing area (mm²)", y = "Wing blue area (mm²)",
-       title = "A) Female wing size vs. blueness", colour = "Temperature") +
+       title = "Female wing size vs. blueness", colour = "Temperature") +
   theme_classic() +
   theme(plot.title = element_text(face = "bold", hjust = 0.5),
         legend.position = "inside",
-        legend.position.inside = c(0.8, 0.85),
+        legend.position.inside = c(0.13, 0.85),
         legend.background = element_rect(colour = "grey80"),
         legend.text = element_text(size = 8),
         legend.title = element_text(size = 9))

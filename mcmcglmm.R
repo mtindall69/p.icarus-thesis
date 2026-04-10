@@ -94,7 +94,7 @@ model <- MCMCglmm(
   random = ~ animal + MotherID + idh(Temperature):animal + idh(Region):animal,
   pedigree = pedigree,
   data = data,
-  family = "exponential",
+  family = "gaussian",
   prior = prior,
   nitt = 130000, burnin = 30000, thin = 100
 )

@@ -23,8 +23,8 @@ options(mc.cores = 4,
 
 # Set some global Stan options
 CHAINS <- 4
-ITER <- 4000
-WARMUP <- 2000
+ITER <- 6000
+WARMUP <- 3000
 BAYES_SEED <- 1234
 
 # Use the Johnson color palette
@@ -52,12 +52,25 @@ theme_nice <- function() {
 #load data
 bluesum <- read.csv("bluesum.csv")
 
-str(bluesum)
 # convert categorical variables
 bluesum$motherID = as.character(bluesum$motherID)
 bluesum$region = as.factor(bluesum$region)
 bluesum$temp = as.factor(bluesum$temp)
 bluesum$sex = as.factor(bluesum$sex)
+
+# # mutate to set Blueness values below 0.5% to zero
+# bluesum <- bluesum %>%
+#   mutate(
+#     avg_blue_mm   = if_else(avg_prop_blue < 0.005, 0, avg_blue_mm),
+#     avg_prop_blue = if_else(avg_prop_blue < 0.005, 0, avg_prop_blue)
+#   )
+
+# add logged blueness and add small constant to zeros
+bluesum <- bluesum %>%
+  mutate(
+    avg_blue_mm = if_else(avg_blue_mm == 0, 0.001, avg_blue_mm),
+    logblue = log(avg_blue_mm)
+  )
 
 #subset data
 blueFdata <- subset(bluesum, sex=="F")
@@ -71,102 +84,379 @@ n_offspring <- length(blueFdata$offspringID) # 327 daughters
 data <- blueFdata %>%
   mutate(
     animal = paste0("ind", offspringID),
-    MotherID = as.factor(motherID),
+    MotherID = (paste0("mom", motherID)),
+    FatherID = (gsub("mom", "dad", MotherID)), # Assuming fatherID is "dad" + motherID)
     Temperature = as.factor(temp_label),
     Region = as.factor(region_label)
   ) %>%
-  select(animal, MotherID, Temperature, Region, TotalArea = avg_total_mm, 
-         Blueness = avg_blue_mm)
-
-# Add mothers to pedigree
-mothers <- blueFdata %>%
-  group_by(motherID) %>%
-  summarise(
-    Temperature = first(temp_label),
-    Region = first(region_label),
-    TotalArea = mean(avg_total_mm, na.rm = TRUE),
-    Blueness = mean(avg_blue_mm, na.rm = TRUE)
-  ) %>%
-  ungroup() %>%
-  mutate(
-    animal = paste0("mom", motherID),
-    MotherID = NA,
-    Temperature = NA,
-    Region = NA,
-    TotalArea = NA,
-    Blueness = NA
-  ) %>%
-  select(animal, MotherID, Temperature, Region, TotalArea, Blueness)
-
+  select(animal, MotherID, FatherID, Temperature, Region, TotalArea = avg_total_mm, 
+         Blueness = avg_blue_mm, LogBlueness = logblue)
 
 ##############################################
 # 2. Create Pedigree
 ##############################################
 pedigree <- data.frame(
-  animal = c(mothers$animal, data$animal),
-  dam = c(rep(NA, n_families), paste0("mom", data$MotherID)),
-  sire = NA
+  animal = c(unique(data$MotherID), unique(data$FatherID), data$animal),
+  dam = c(rep(NA, n_families*2), data$MotherID),
+  sire = c(rep(NA, n_families*2), data$FatherID)
 )
 
 # Create relatedness matrix for brms
-Amat <- as.matrix(nadiv::makeA(pedigree))
+Amat <- as.matrix(nadiv::makeA(pedigree)) 
+# Forces full-sibs- gives conservative estimate of heritability
 
 
 ##############################################
 # 4. Fit Animal Model
 ##############################################
 
-# HURDLE LOGNORMAL
-# Intercept only model
-model <- brm(
-  bf(Blueness ~ TotalArea + Temperature + Region + TotalArea:Temperature + Temperature:Region + 
-    (1 | gr(animal, cov = Amat)), # random effect structure
-    hu ~ 1), # intercept-only hurdle component
-  data = data, # data set (without mothers)
-  data2 = list(Amat = Amat),
-  family = hurdle_lognormal(),
-  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  silent = 2
-)
-  # Does not converge
+# HURDLE LOGNORMAL - BAD
 
-# Add mcmc random effect structure
+# Intercept only model
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region + 
+#        TotalArea:Temperature + Temperature:Region + 
+#     (1 | gr(animal, cov = Amat)), # random effect structure
+#     hu ~ 1), # intercept-only hurdle component
+#   data = data, # data set (without mothers)
+#   data2 = list(Amat = Amat),
+#   family = hurdle_lognormal(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+#   # Does not converge - BAD 23% divergence
+# 
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region + 
+#        TotalArea:Temperature + Temperature:Region + 
+#        (1 | gr(animal, cov = Amat)),
+#      hu ~ (1 | gr(animal, cov = Amat))),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_lognormal(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+# # BEST SO FAR - Rhats all </= 1.01 except sigma
+# 
+# 
+# # Add mcmc random effect structure
+# model <- brm(
+#   bf(
+#     Blueness ~ TotalArea + Temperature + Region +
+#       TotalArea:Temperature + Temperature:Region +
+#       (1 | gr(animal, cov = Amat)) +
+#       (1 | MotherID) +
+#       (0 + Temperature || gr(animal, cov = Amat)) +
+#       (0 + Region || gr(animal, cov = Amat)),
+#     hu ~ 1  # intercept-only hurdle component
+#   ),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_lognormal(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+# 
+# # Add hurdle structure: account for zero-inflation in Blueness
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region +
+#        TotalArea:Temperature + Temperature:Region +
+#        (1 | gr(animal, cov = Amat)) +
+#        (1 | MotherID) +
+#        (0 + Temperature || gr(animal, cov = Amat)) +
+#        (0 + Region || gr(animal, cov = Amat)), 
+#      hu ~ Temperature + Region),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_lognormal(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+# 
+# # Add full model into hurdle
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region +
+#        TotalArea:Temperature + Temperature:Region +
+#        (1 | gr(animal, cov = Amat)) +
+#        (1 | MotherID) +
+#        (0 + Temperature || gr(animal, cov = Amat)) +
+#        (0 + Region || gr(animal, cov = Amat)), 
+#      hu ~ TotalArea + Temperature + Region + 
+#        TotalArea:Temperature + Temperature:Region +
+#        (1 | gr(animal, cov = Amat)) +
+#        (1 | MotherID) +
+#        (0 + Temperature || gr(animal, cov = Amat)) +
+#        (0 + Region || gr(animal, cov = Amat))),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_lognormal(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+# # OOF bad ppcheck, bad convergence
+# 
+# 
+# # Mother as fixed effect in hurdle, only random individual? - NO
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region +
+#        TotalArea:Temperature + Temperature:Region +
+#        (1 | gr(animal, cov = Amat)) +
+#        (1 | MotherID) +
+#        (0 + Temperature || gr(animal, cov = Amat)) +
+#        (0 + Region || gr(animal, cov = Amat)), 
+#      hu ~ TotalArea + Temperature + Region + #MotherID +
+#        TotalArea:Temperature + Temperature:Region +
+#        (1 | gr(animal, cov = Amat)) +
+#        (1 | MotherID)),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_lognormal(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+
+#####################################
+# HURDLE GAMMA
+#####################################
+
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region + 
+#        TotalArea:Temperature + Temperature:Region + 
+#        (1 | gr(animal, cov = Amat)),
+#      hu ~ (1 | gr(animal, cov = Amat))),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_gamma(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+
+# model <- brm(
+#   bf(Blueness ~ TotalArea + Temperature + Region +
+#        TotalArea:Temperature + Temperature:Region +
+#        (0 + Temperature | gr(animal, cov = Amat)) + (1 | MotherID),
+#      hu ~ Temperature * Region + (1 | MotherID)),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_gamma(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12),
+#   silent = 2
+# )
+# BEST SO FAR - Rhats all </= 1.01, pp_check looks good 
+# Remove MotherID- included in Amat, forced full-sibs
+# Include priors and shape 
+# Add random slopes for region too?
+
+# model <- brm(
+#   bf(
+#     Blueness ~ TotalArea + Temperature + Region + 
+#       TotalArea:Temperature + Temperature:Region + 
+#       (0 + Temperature + Region | gr(animal, cov = Amat)),
+#     hu ~ Temperature * Region + (0 + Temperature + Region | gr(animal, cov = Amat)),
+#     shape ~ Temperature + Region
+#      ),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_gamma(),
+#   prior = c(
+#     prior(normal(0, 2), class = "Intercept"),
+#     prior(normal(0, 1), class = "b"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+#     prior(normal(0, 1.5), class = "b", dpar = "hu"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "shape"),
+#     prior(normal(0, 1), class = "b", dpar = "shape"),
+#     prior(lkj(2), class = "cor")   # weakly informative on genetic correlation
+#   ),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.99, max_treedepth = 15)
+# )
+# 0 divergences, shape Region Rhat is 1.02, pp_check looks good, model is very complex and may be overfitting.
+
+# Change Temperature + Region to Temperature:Region random slope to capture GxE
+# VERY complex model
 model <- brm(
   bf(
-    Blueness ~ TotalArea + Temperature + Region +
-      TotalArea:Temperature + Temperature:Region +
-      (1 | gr(animal, cov = Amat)) +
-      (1 | MotherID) +
-      (0 + Temperature || gr(animal, cov = Amat)) +
-      (0 + Region || gr(animal, cov = Amat)),
-    hu ~ 1  # intercept-only hurdle component
+    Blueness ~ TotalArea + Temperature + Region + 
+      TotalArea:Temperature + Temperature:Region + 
+      (0 + Temperature:Region | gr(animal, cov = Amat)),
+    hu ~ Temperature * Region + (0 + Temperature:Region | gr(animal, cov = Amat)),
+    shape ~ Temperature + Region
   ),
   data = data,
   data2 = list(Amat = Amat),
-  family = hurdle_lognormal(),
+  family = hurdle_gamma(),
+  prior = c(
+    prior(normal(0, 2), class = "Intercept"),
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+    prior(normal(0, 1.5), class = "b", dpar = "hu"),
+    prior(normal(0, 2), class = "Intercept", dpar = "shape"),
+    prior(normal(0, 1), class = "b", dpar = "shape"),
+    prior(lkj(4), class = "cor") # stronger prior on genetic correlation to help with convergence
+  ),
   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  control = list(adapt_delta = 0.95, max_treedepth = 12),
-  silent = 2
+  control = list(adapt_delta = 0.99, max_treedepth = 15)
 )
 
-summary(model)
+# Remove random region slope from hurdle to help convergence
+model <- brm(
+  bf(
+    Blueness ~ TotalArea + Temperature + Region + 
+      TotalArea:Temperature + Temperature:Region + 
+      (0 + Temperature:Region | gr(animal, cov = Amat)),
+    hu ~ Temperature * Region + (0 + Temperature | gr(animal, cov = Amat)),
+    shape ~ Temperature + Region
+  ),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = hurdle_gamma(),
+  prior = c(
+    prior(normal(0, 2), class = "Intercept"),
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+    prior(normal(0, 1.5), class = "b", dpar = "hu"),
+    prior(normal(0, 2), class = "Intercept", dpar = "shape"),
+    prior(normal(0, 1), class = "b", dpar = "shape"),
+    prior(lkj(2), class = "cor") # weaker prior on genetic correlation
+  ),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.99, max_treedepth = 15)
+)
+
+# Remove region random slope and shape to simplify model and improve convergence
+# CONSERVATIVE MODEL - ONLY GXE FOR TEMP
+model <- brm(
+  bf(
+    Blueness ~ TotalArea + Temperature + Region + 
+      TotalArea:Temperature + Temperature:Region + 
+      (0 + Temperature | gr(animal, cov = Amat)),
+    hu ~ Temperature * Region + (0 + Temperature | gr(animal, cov = Amat)),
+  ),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = hurdle_gamma(),
+  prior = c(
+    prior(normal(0, 2), class = "Intercept"),
+    prior(normal(0, 1), class = "b"),
+    prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+    prior(normal(0, 1.5), class = "b", dpar = "hu")
+  ),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+
+
+#########################################
+# BACK TO GAUSSIAN - SIMPLE MODEL
+#########################################
+
+model <- brm(
+  Blueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+
+model <- brm(
+  LogBlueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+
+
+
+#########################################
+# CHECK CONVERGENCE AND FIT
+#########################################
+
+n_div <- sum(subset(nuts_params(model), Parameter == "divergent__")$Value)
+cat("Divergences:", n_div, "/",
+    4 * 3000, "\n\n")
+
 plot(model)
 pp_check(model, ndraws = 100)
 
-# Add hurdle structure: account for zero-inflation in Blueness
-model <- brm(
-  bf(Blueness ~ TotalArea + Temperature + Region +
-       TotalArea:Temperature + Temperature:Region +
-       (1 | gr(animal, cov = Amat)) +
-       (1 | MotherID) +
-       (0 + Temperature || gr(animal, cov = Amat)) +
-       (0 + Region || gr(animal, cov = Amat)), 
-     hu ~ Temperature + Region),
-  data = data, # data set (without mothers)
-  data2 = list(Amat = Amat),
-  family = hurdle_lognormal(),
-  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  control = list(adapt_delta = 0.95, max_treedepth = 12),
-  silent = 2
-)
+#########################################
+# EXTRACT GENETIC PARAMETERS
+#########################################
+
+summary(model)
+vc <- VarCorr(model)
+print(vc)
+
+# Helper function for formatting posterior summaries
+fmt <- function(x) sprintf("%.3f [%.3f, %.3f]",
+                           mean(x), quantile(x, 0.03), quantile(x, 0.97))
+
+# Extract posterior draws for variance components
+draws <- as_draws_df(model)
+
+# Additive genetic SDs by temperature and region (random slope SDs) 
+va_ocold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionÖland`
+va_scold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionSkåne`
+va_owarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionÖland`
+va_swarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`
+
+# If the column names don't match, try to find them
+if (is.null(va_cold_sd)) {
+  # brms may name factor levels differently — search for the right columns
+  animal_sd_cols <- grep("^sd_animal__", names(draws), value = TRUE)
+  cat("\nAnimal SD columns found:", paste(animal_sd_cols, collapse = ", "), "\n")
+  
+  if (length(animal_sd_cols) >= 2) {
+    va_cold_sd <- draws[[animal_sd_cols[1]]]
+    va_warm_sd <- draws[[animal_sd_cols[2]]]
+    cat("Using:", animal_sd_cols[1], "as VA_cold_sd\n")
+    cat("Using:", animal_sd_cols[2], "as VA_warm_sd\n")
+  }
+}
+
+# Genetic correlation
+cor_cols <- grep("^cor_animal__", names(draws), value = TRUE)
+if (length(cor_cols) > 0) {
+  rG <- draws[[cor_cols[1]]]
+  cat("\nUsing:", cor_cols[1], "as genetic correlation\n")
+}
+
+if (!is.null(va_ocold_sd)) {
+  va_ocold <- va_ocold_sd^2
+  va_scold <- va_scold_sd^2
+  va_owarm <- va_owarm_sd^2
+  va_swarm <- va_swarm_sd^2
+  
+  cat("  VA at Cold (18°C):Region Öland:      ", fmt(va_ocold), "\n")
+  cat("  VA at Warm (26°C):Region Öland:      ", fmt(va_owarm), "\n")
+  cat("  VA at Cold (18°C):Region Skåne:      ", fmt(va_scold), "\n")
+  cat("  VA at Warm (26°C):Region Skåne:      ", fmt(va_swarm), "\n")
+  cat("  sqrt(VA) ÖlandCold:          ", fmt(va_ocold_sd), "\n")
+  cat("  sqrt(VA) ÖlandWarm:          ", fmt(va_owarm_sd), "\n")
+  cat("  sqrt(VA) SkåneCold:          ", fmt(va_scold_sd), "\n")
+  cat("  sqrt(VA) SkåneWarm:          ", fmt(va_swarm_sd), "\n")
+  
+  # if (exists("rG")) {
+  #   cat("  Genetic correlation rG: ", fmt(rG), "\n")
+  #   cat("  P(rG < 1):              ", sprintf("%.4f", mean(rG < 1)), "\n")
+  #   cat("  P(rG < 0.8):            ", sprintf("%.4f", mean(rG < 0.8)), "\n")
+  #   cat("\n  rG < 1 indicates genotype × environment interaction.\n")
+  #   cat("  rG < 0.8 is often considered biologically meaningful G×E.\n")
+  #}
+}
 

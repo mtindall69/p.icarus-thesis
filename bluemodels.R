@@ -112,6 +112,9 @@ plot(blueFdata$daughterscore, blueFdata$avg_prop_blue)
 # MODELS
 #=======================================================================
 
+# FEMALE BLUENESS
+####################
+
 # Is blueness explained by temp (plasticity), region and family (genetics)?
 m <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + (1|motherID), data=blueFdata)
 summary(m)
@@ -174,10 +177,13 @@ mb <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + motherID
 summary(mb)
 Anova(mb) 
 AIC(mb) #1845.377
+ef<-effect("temp:motherID", m2)
+summary(ef) # output for reaction norms
 
 
-
+####################
 # MALE BLUENESS
+####################
 
 m2b <- lmer(avg_blue_mm ~ avg_total_mm + temp * region + (1|motherID), data=blueMdata)
 summary(m2b)
@@ -221,8 +227,9 @@ summary(ef)
 
 
         
-
+###################
 #BOTH SEXES
+###################
 
 #Blueness
 m3 <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + (1|motherID), data=bluesum)
@@ -270,7 +277,20 @@ Anova(m5) #all interactions significant for blue area
 AIC(m5) #2997.341
 
 
-#Area
+#################
+# TOTAL AREA
+#################
+
+# Females
+m <- lm(avg_total_mm ~ temp + region + motherID + temp:region + temp:motherID, 
+        data=blueFdata)
+summary(m)
+
+m <- lmer(avg_total_mm ~ temp + region + motherID + temp:region + temp:motherID 
+          + (1|motherID), data=blueFdata)
+summary(m)
+
+
 m6 <- lmer(avg_total_mm ~ sex * temp * region + (1|motherID), data=bluesum)
 summary(m6)
 Anova(m6)#temp:region significant for total area but other interactions NOT

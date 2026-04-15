@@ -283,76 +283,76 @@ Amat <- as.matrix(nadiv::makeA(pedigree))
 
 # Change Temperature + Region to Temperature:Region random slope to capture GxE
 # VERY complex model
-model <- brm(
-  bf(
-    Blueness ~ TotalArea + Temperature + Region + 
-      TotalArea:Temperature + Temperature:Region + 
-      (0 + Temperature:Region | gr(animal, cov = Amat)),
-    hu ~ Temperature * Region + (0 + Temperature:Region | gr(animal, cov = Amat)),
-    shape ~ Temperature + Region
-  ),
-  data = data,
-  data2 = list(Amat = Amat),
-  family = hurdle_gamma(),
-  prior = c(
-    prior(normal(0, 2), class = "Intercept"),
-    prior(normal(0, 1), class = "b"),
-    prior(normal(0, 2), class = "Intercept", dpar = "hu"),
-    prior(normal(0, 1.5), class = "b", dpar = "hu"),
-    prior(normal(0, 2), class = "Intercept", dpar = "shape"),
-    prior(normal(0, 1), class = "b", dpar = "shape"),
-    prior(lkj(4), class = "cor") # stronger prior on genetic correlation to help with convergence
-  ),
-  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  control = list(adapt_delta = 0.99, max_treedepth = 15)
-)
-
-# Remove random region slope from hurdle to help convergence
-model <- brm(
-  bf(
-    Blueness ~ TotalArea + Temperature + Region + 
-      TotalArea:Temperature + Temperature:Region + 
-      (0 + Temperature:Region | gr(animal, cov = Amat)),
-    hu ~ Temperature * Region + (0 + Temperature | gr(animal, cov = Amat)),
-    shape ~ Temperature + Region
-  ),
-  data = data,
-  data2 = list(Amat = Amat),
-  family = hurdle_gamma(),
-  prior = c(
-    prior(normal(0, 2), class = "Intercept"),
-    prior(normal(0, 1), class = "b"),
-    prior(normal(0, 2), class = "Intercept", dpar = "hu"),
-    prior(normal(0, 1.5), class = "b", dpar = "hu"),
-    prior(normal(0, 2), class = "Intercept", dpar = "shape"),
-    prior(normal(0, 1), class = "b", dpar = "shape"),
-    prior(lkj(2), class = "cor") # weaker prior on genetic correlation
-  ),
-  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  control = list(adapt_delta = 0.99, max_treedepth = 15)
-)
-
-# Remove region random slope and shape to simplify model and improve convergence
-# CONSERVATIVE MODEL - ONLY GXE FOR TEMP
-model <- brm(
-  bf(
-    Blueness ~ TotalArea + Temperature + Region + 
-      TotalArea:Temperature + Temperature:Region + 
-      (0 + Temperature | gr(animal, cov = Amat)),
-    hu ~ Temperature * Region + (0 + Temperature | gr(animal, cov = Amat)),
-  ),
-  data = data,
-  data2 = list(Amat = Amat),
-  family = hurdle_gamma(),
-  prior = c(
-    prior(normal(0, 2), class = "Intercept"),
-    prior(normal(0, 1), class = "b"),
-    prior(normal(0, 2), class = "Intercept", dpar = "hu"),
-    prior(normal(0, 1.5), class = "b", dpar = "hu")
-  ),
-  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  control = list(adapt_delta = 0.95, max_treedepth = 12)
-)
+# model <- brm(
+#   bf(
+#     Blueness ~ TotalArea + Temperature + Region + 
+#       TotalArea:Temperature + Temperature:Region + 
+#       (0 + Temperature:Region | gr(animal, cov = Amat)),
+#     hu ~ Temperature * Region + (0 + Temperature:Region | gr(animal, cov = Amat)),
+#     shape ~ Temperature + Region
+#   ),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_gamma(),
+#   prior = c(
+#     prior(normal(0, 2), class = "Intercept"),
+#     prior(normal(0, 1), class = "b"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+#     prior(normal(0, 1.5), class = "b", dpar = "hu"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "shape"),
+#     prior(normal(0, 1), class = "b", dpar = "shape"),
+#     prior(lkj(4), class = "cor") # stronger prior on genetic correlation to help with convergence
+#   ),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.99, max_treedepth = 15)
+# )
+# 
+# # Remove random region slope from hurdle to help convergence
+# model <- brm(
+#   bf(
+#     Blueness ~ TotalArea + Temperature + Region + 
+#       TotalArea:Temperature + Temperature:Region + 
+#       (0 + Temperature:Region | gr(animal, cov = Amat)),
+#     hu ~ Temperature * Region + (0 + Temperature | gr(animal, cov = Amat)),
+#     shape ~ Temperature + Region
+#   ),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_gamma(),
+#   prior = c(
+#     prior(normal(0, 2), class = "Intercept"),
+#     prior(normal(0, 1), class = "b"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+#     prior(normal(0, 1.5), class = "b", dpar = "hu"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "shape"),
+#     prior(normal(0, 1), class = "b", dpar = "shape"),
+#     prior(lkj(2), class = "cor") # weaker prior on genetic correlation
+#   ),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.99, max_treedepth = 15)
+# )
+# 
+# # Remove region random slope and shape to simplify model and improve convergence
+# # CONSERVATIVE MODEL - ONLY GXE FOR TEMP
+# model <- brm(
+#   bf(
+#     Blueness ~ TotalArea + Temperature + Region + 
+#       TotalArea:Temperature + Temperature:Region + 
+#       (0 + Temperature | gr(animal, cov = Amat)),
+#     hu ~ Temperature * Region + (0 + Temperature | gr(animal, cov = Amat)),
+#   ),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = hurdle_gamma(),
+#   prior = c(
+#     prior(normal(0, 2), class = "Intercept"),
+#     prior(normal(0, 1), class = "b"),
+#     prior(normal(0, 2), class = "Intercept", dpar = "hu"),
+#     prior(normal(0, 1.5), class = "b", dpar = "hu")
+#   ),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12)
+# )
 
 
 #########################################
@@ -369,7 +369,13 @@ model <- brm(
   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
   control = list(adapt_delta = 0.95, max_treedepth = 12)
 )
+# 9/12000 (0%) divergence, 3/4 chains had E-BFMI < 0.3
+# pp check looks ok, 5 Rhats > 1.00
+# some estimate errors quite high
+# VA OCold: 70 [49, 96], VA OWarm: 21 [10,35]
+# VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
 
+#logged outcomes - modified data so 7 zeros were replaced with small constant
 model <- brm(
   LogBlueness ~ TotalArea + Temperature + Region + 
     TotalArea:Temperature + Temperature:Region + 
@@ -380,7 +386,9 @@ model <- brm(
   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
   control = list(adapt_delta = 0.95, max_treedepth = 12)
 )
-
+# 22/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
+# pp check looks good, 7 Rhats > 1.00, 3 = 1.02
+# estimate errors also high
 
 
 #########################################
@@ -416,7 +424,7 @@ va_owarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionÖland`
 va_swarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`
 
 # If the column names don't match, try to find them
-if (is.null(va_cold_sd)) {
+if (is.null(va_ocold_sd)) {
   # brms may name factor levels differently — search for the right columns
   animal_sd_cols <- grep("^sd_animal__", names(draws), value = TRUE)
   cat("\nAnimal SD columns found:", paste(animal_sd_cols, collapse = ", "), "\n")

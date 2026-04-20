@@ -8,7 +8,7 @@ setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/")
 
 #load packages
 pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
-               RColorBrewer,ape,MCMCglmm,psych,effects)
+               RColorBrewer,ape,MCMCglmm,psych,effects,MASS,MuMIn)
 
 #==================================================================
 # LOAD AND PREPROCESS DATA
@@ -107,6 +107,17 @@ summary(n) #YES
 # adjust blue area for total area, not just prop
 plot(blueFdata$daughterscore, blueFdata$avg_prop_blue)
 
+#=======================================================================
+# FAMILY MEANS PER TEMP
+#=======================================================================
+family_means <- blueFdata %>%
+  group_by(motherID, temp) %>%
+  summarise(N = n(), Mean = mean(avg_prop_blue), SD = sd(avg_prop_blue),
+            .groups = "drop") %>%
+  arrange(motherID, temp) %>%
+  as.data.frame()
+write.csv(family_means, "propmeans.csv", row.names = FALSE)
+
 
 #=======================================================================
 # MODELS
@@ -201,30 +212,9 @@ plot(allEffects(m2b))
 
 m2b <- lmer(avg_blue_mm ~ avg_total_mm + temp + (1|motherID), data=blueMdata)
 summary(m2b)
-Anova(m2b) # temp significant, region not
+Anova(m2b) 
 AIC(m2b) #637.2989
 plot(allEffects(m2b))
-
-
-
-
-# AREA
-
-ma <- lmer(avg_total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueFdata)
-summary(m2b)
-Anova(ma) # temp significant to size
-plot(allEffects(ma))
-ef<-effect("temp:region", ma)
-summary(ef)
-
-# area males
-m2a <- lmer(avg_total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueMdata)
-summary(m2a)
-Anova(m2a) # temp significant to size
-plot(allEffects(m2a))
-ef<-effect("temp:region", m2a)
-summary(ef)
-
 
         
 ###################
@@ -290,7 +280,16 @@ m <- lmer(avg_total_mm ~ temp + region + motherID + temp:region + temp:motherID
           + (1|motherID), data=blueFdata)
 summary(m)
 
+ma <- lmer(avg_total_mm ~ temp * region + (1|motherID), data=blueFdata)
+summary(ma)
+Anova(ma) # temp significant to size
+plot(allEffects(ma))
+ef<-effect("temp:region", ma)
+summary(ef)
 
+
+
+# Both
 m6 <- lmer(avg_total_mm ~ sex * temp * region + (1|motherID), data=bluesum)
 summary(m6)
 Anova(m6)#temp:region significant for total area but other interactions NOT
@@ -303,6 +302,14 @@ Anova(m7)
 AIC(m7) #3686.801
 plot(allEffects(m7))
 
+
+# Males
+m2a <- lmer(avg_total_mm ~ temp * region + (1|motherID)+ (1|start_day), data=blueMdata)
+summary(m2a)
+Anova(m2a) # temp significant to size
+plot(allEffects(m2a))
+ef<-effect("temp:region", m2a)
+summary(ef)
 
 
 #================================================================
@@ -332,3 +339,223 @@ s <- lm(avg_blue_mm ~ avg_total_mm, data=SFdata)
 plot(blueFdata$avg_total_mm, blueFdata$avg_blue_mm, col=ifelse(blueFdata$region == "O", "purple", "green"))
 abline(o, col="purple")
 abline(s, col="green")
+
+
+
+#=====================================================================
+# FITNESS
+#=====================================================================
+
+#Fecundity
+momfit <- read_excel("momfit.xlsx")
+momfit$motherID = as.factor(momfit$motherID)
+momfit$eggs_per_day <- momfit$total_eggs / momfit$days_alive
+momfit$z_eggs <- scale(momfit$total_eggs)
+
+m <- lm(total_eggs ~ motherscore, data=momfit)
+summary(m) # AIC 716, motherscore significant 
+
+m <- lm(eggs_per_day ~ motherscore, data=momfit)
+summary(m) # AIC 461, near significant
+
+# GLM for non-normal count data
+m <- glm(total_eggs ~ motherscore, data=momfit, family=poisson)
+summary(m) # AIC 7066, motherscore very significant
+
+m <- glm(total_eggs ~ motherscore + mom_aTWA, data=momfit, family=poisson)
+summary(m) # AIC 7057
+# motherscore and area significant
+
+m <- glm(total_eggs ~ motherscore + mom_aTWA + days_alive, data=momfit, family=poisson)
+summary(m) # AIC 5951
+# all effects very significant
+
+m <- glm(total_eggs ~ motherscore + mom_aTWA + days_alive + region, data=momfit, family=poisson)
+summary(m) # AIC 4770
+#motherscore not significant, region is
+
+m <- glm(total_eggs ~ mom_aTWA + days_alive + region, data=momfit, family=poisson)
+summary(m) # AIC 4768 not much better without mother score
+
+m <- glm(total_eggs ~ motherscore + mom_aTWA + region, data=momfit, family=poisson)
+summary(m) # AIC 5199
+# all effects significant but model worse without days alive
+
+m <- glm(total_eggs ~ region, data=momfit, family=poisson)
+summary(m) # AIC 5635, better than just motherscore, less residual deviance
+
+m <- glm(total_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region, data=momfit, family=poisson)
+summary(m) # AIC 4751, high R^2 values, all effects significant
+
+m <- glm(total_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region + mom_aTWA:region, data=momfit, family=poisson)
+summary(m) # AIC 4741, region no longer significant
+
+m <- glm(total_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region + mom_aTWA:region + motherscore:mom_aTWA, 
+         data=momfit, family=poisson)
+summary(m) # AIC 4713, region and score:region no longer significant
+
+m <- glm(total_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region + mom_aTWA:region + motherscore:mom_aTWA +
+           days_alive:region, 
+         data=momfit, family=poisson)
+summary(m) # AIC 4310, days_alive near significant, all others significant
+
+#z-scale eggs?
+m <- glm(z_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region + mom_aTWA:region, data=momfit, family=gaussian)
+summary(m) # AIC 139, motherscore, region not significant, R^2 0.42
+
+m <- glm(z_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region + mom_aTWA:region + motherscore:mom_aTWA, 
+         data=momfit, family=gaussian)
+summary(m) # AIC 140, R^2 0.42
+
+m <- glm(z_eggs ~ motherscore + days_alive + mom_aTWA + region +
+           motherscore:region + mom_aTWA:region + motherscore:mom_aTWA +
+           days_alive:region, 
+         data=momfit, family=gaussian)
+summary(m) # AIC 140, no significance, R^2 0.45 ---------- BEST?
+
+m <- glm(z_eggs ~ days_alive + mom_aTWA + region, data=momfit, family=gaussian)
+summary(m) # AIC 135, R^2 0.40
+
+m <- glm(z_eggs ~ motherscore + days_alive + mom_aTWA + region, data=momfit, family=gaussian)
+summary(m) # AIC 137, R^2 0.40
+
+dev   <- deviance(m)
+df    <- df.residual(m)
+p_value <- 1-pchisq(dev,df)
+cbind.data.frame(c("Deviance GOF", "D", "df", "p-value"),c(" ", round(dev,4), df, p_value))
+
+pr <- sum(residuals(m, type="pearson")^2) # get Pearson Chi2
+pchisq(pr, m$df.residual, lower=F) # calc p-value
+dv <- m$deviance
+pchisq(dv, m$df.residual, lower= F) # calc p-vl
+
+P_disp <- function(x) {
+  pr <- sum(residuals(x, type="pearson")^2)
+  dispersion <- pr/x$df.residual
+  cat("\n Pearson Chi2 = ", pr , "\n Dispersion = ", dispersion, "\n")
+}
+P_disp(m)
+
+#not enough data to say if blueness is related to fecundity
+
+plot(momfit$motherscore, momfit$total_eggs, 
+     xlab="Mother Score", ylab="Total Eggs", main="Fecundity vs Blueness")
+abline(lm(total_eggs ~ motherscore, data=momfit), lty=2)
+
+# Simple bivariate model for plot annotation
+  m_plot <- lm(total_eggs ~ motherscore, data = momfit)
+  sm      <- summary(m_plot)
+  slope   <- coef(sm)["motherscore", "Estimate"]
+  slope_se <- coef(sm)["motherscore", "Std. Error"]
+  r2      <- sm$r.squared
+  p_val   <- coef(sm)["motherscore", "Pr(>|t|)"]
+
+  label_txt <- paste0(
+    "slope = ", round(slope, 2), " ± ", round(slope_se, 2), "\n",
+    "R² = ",    round(r2, 3),    "\n",
+    "p = ",     format.pval(p_val, digits = 3)
+  )
+
+  ggplot(momfit, aes(x = motherscore, y = total_eggs)) +
+    geom_smooth(method = "lm", colour = "black", fill = "grey70", alpha = 0.4, lty=2) +
+    geom_point(size = 2.5, alpha = 0.7) +
+    annotate("label",
+             x = 2.0, y = 800,
+             label     = label_txt,
+             hjust = 1.05, vjust = 1.3,
+             size  = 3.5, label.padding = unit(0.4, "lines"), label.size = 0.3) +
+    scale_x_continuous(breaks = 1:5) +
+    labs(
+      x = "Mother Blue Score",
+      y = "Total Eggs",
+      title = "Fecundity vs Blueness",
+    ) +
+    theme_bw(base_size = 13)
+
+#============================================
+#Surivival
+survival <- read_excel("survival.xlsx")
+
+survival$motherID = as.factor(survival$motherID)
+survival$pupaeID = as.factor(survival$pupaeID)
+survival$temp = as.factor(survival$temp)
+survival$sex = as.factor(survival$sex)
+
+m <- glm(survived ~ motherscore, data = survival, family = binomial)
+summary(m) # motherscore is significant
+
+coefs    <- summary(m)$coef
+invlogit <- function(x) 1 / (1 + exp(-x))
+threshold <- -coefs[1, 1] / coefs[2, 1]
+cat("Motherscore at 50% survival probability:", round(threshold, 3), "\n")
+
+# Prediction ribbon
+x_pred  <- seq(min(survival$motherscore), max(survival$motherscore), by = 0.01)
+pred    <- predict(m,
+                   newdata = data.frame(motherscore = x_pred),
+                   type    = "link",
+                   se.fit  = TRUE)
+
+ribbon  <- data.frame(
+  motherscore = x_pred,
+  fit         = invlogit(pred$fit),
+  lwr         = invlogit(pred$fit - 1.96 * pred$se.fit),
+  upr         = invlogit(pred$fit + 1.96 * pred$se.fit)
+)
+
+# ── Threshold at mean survival probability ─────────────────────────────────────
+mean_survival <- mean(survival$survived)
+mean_logit    <- log(mean_survival / (1 - mean_survival))   # logit of mean survival
+threshold     <- (mean_logit - coefs[1, 1]) / coefs[2, 1]   # solve for x
+
+cat("Mean survival probability:", round(mean_survival, 3), "\n")
+cat("Motherscore at mean survival probability:", round(threshold, 3), "\n")
+
+# Plotting
+ggplot(survival, aes(x = motherscore, y = survived)) +
+  
+  # 95% CI ribbon
+  geom_ribbon(data = ribbon,
+              aes(x=motherscore, y = fit, ymin = lwr, ymax = upr),
+              fill = "grey70", alpha = 0.4, inherit.aes = FALSE) +
+  
+  # Logistic curve
+  geom_line(data = ribbon,
+            aes(x=motherscore, y = fit),
+            colour = "black", linewidth = 0.9, inherit.aes = FALSE) +
+  
+  # Reference lines at threshold
+  geom_hline(yintercept = mean(survival$survived), linetype = "dashed", colour = "grey40") +
+  geom_vline(xintercept = threshold, linetype = "dashed", colour = "grey40") +
+  
+  # Jittered raw data coloured by temperature
+  geom_jitter(aes(colour = temp),
+              width = 0.35, height = 0.03,
+              size = 2.0, alpha = 0.4) +
+  
+  scale_colour_manual(values = c("steelblue", "orangered"),
+                      labels = c("Cold", "Warm"),
+                      name   = "Temperature") +
+  
+  scale_x_continuous(breaks = 1:5) +
+  scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1),
+                     labels = c("0", "0.25", "0.5", "0.75", "1")) +
+  
+  labs(
+    title    = "Likelihood of Survival by Mother Blue Score",
+    subtitle = paste0("Logistic regression  |  Motherscore at mean survival (",
+                      round(mean_survival * 100, 1), "%) = ",
+                      round(threshold, 2)),
+    x        = "Mother Blue Score",
+    y        = "Probability of Survival"
+  ) +
+  
+  theme_classic(base_size = 13) +
+  theme(legend.position = "top")
+

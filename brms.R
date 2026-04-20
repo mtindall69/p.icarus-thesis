@@ -65,12 +65,12 @@ bluesum$sex = as.factor(bluesum$sex)
 #     avg_prop_blue = if_else(avg_prop_blue < 0.005, 0, avg_prop_blue)
 #   )
 
-# add logged blueness and add small constant to zeros
-bluesum <- bluesum %>%
-  mutate(
-    avg_blue_mm = if_else(avg_blue_mm == 0, 0.001, avg_blue_mm),
-    logblue = log(avg_blue_mm)
-  )
+# # add logged blueness and add small constant to zeros
+# bluesum <- bluesum %>%
+#   mutate(
+#     avg_blue_mm = if_else(avg_blue_mm == 0, 0.001, avg_blue_mm),
+#     logblue = log(avg_blue_mm)
+#   )
 
 #subset data
 blueFdata <- subset(bluesum, sex=="F")
@@ -90,7 +90,7 @@ data <- blueFdata %>%
     Region = as.factor(region_label)
   ) %>%
   select(animal, MotherID, FatherID, Temperature, Region, TotalArea = avg_total_mm, 
-         Blueness = avg_blue_mm, LogBlueness = logblue)
+         Blueness = avg_blue_mm)#, LogBlueness = logblue)
 
 ##############################################
 # 2. Create Pedigree
@@ -389,6 +389,21 @@ model <- brm(
 # 22/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
 # pp check looks good, 7 Rhats > 1.00, 3 = 1.02
 # estimate errors also high
+
+# Now for total area to get correlation of blueness va to area va
+model <- brm(
+  TotalArea ~ Temperature + Region + Temperature:Region + 
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 12/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, 8 Rhats (& sigma) > 1.00
+# VA OCold: 128 [72, 197], VA OWarm: 133 [50,241]
+# VA SCold: 123 [58, 208], VA SWarm: 163 [71, 278]
 
 
 #########################################

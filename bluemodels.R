@@ -8,7 +8,13 @@ setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/")
 
 #load packages
 pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
-               RColorBrewer,ape,MCMCglmm,psych,effects,MASS,MuMIn)
+               RColorBrewer,ape,MCMCglmm,psych,effects,MASS,MuMIn,glmmTMB,rlang,
+               interactions,ggfortify,sjPlot,DHARMa,performance)
+
+PAL_TEMP <- c("Cold (18°C)" = "#3B7DD8", "Warm (26°C)" = "#E8712A")
+PAL_REGION  <- c("Öland" = "#2CA02C", "Skåne" = "#9467BD")
+TEMP_LABELS <- c("Cold (18°C)", "Warm (26°C)")
+PAL_SEX <- c("Female" = "#D81B60", "Male" = "#1C05B3")
 
 #==================================================================
 # LOAD AND PREPROCESS DATA
@@ -17,8 +23,6 @@ pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
 #load data
 bluedata <- read.csv("blueness.csv")
 
-str(bluedata)
-glimpse(bluedata)
 # convert categorical variables
 bluedata$motherID = as.factor(bluedata$motherID)
 bluedata$region = as.factor(bluedata$region)
@@ -85,7 +89,6 @@ write.csv(bluesum, "bluesum.csv", row.names = FALSE)
 
 #load aggregated data
 bluesum <- read.csv("bluesum.csv")
-glimpse(bluesum)
 
 bluesum$motherID = as.factor(bluesum$motherID)
 bluesum$region = as.factor(bluesum$region)
@@ -340,7 +343,56 @@ plot(blueFdata$avg_total_mm, blueFdata$avg_blue_mm, col=ifelse(blueFdata$region 
 abline(o, col="purple")
 abline(s, col="green")
 
+# area vs blue
+summary(lm(avg_blue_mm ~ avg_total_mm + temp, data = blueFdata))
+# adjusted R^2 = 0.213
 
+summary(lm(avg_blue_mm ~ avg_total_mm, 
+           data = subset(blueFdata, temp_label == "Cold (18°C)")))
+summary(lm(avg_blue_mm ~ avg_total_mm,
+           data = subset(blueFdata, temp_label == "Warm (26°C)")))
+  # no relationship in warm
+
+r2_cold <- summary(lm(avg_blue_mm ~ avg_total_mm, 
+                      data = subset(blueFdata, temp_label == "Cold (18°C)")))$adj.r.squared
+r2_warm <- summary(lm(avg_blue_mm ~ avg_total_mm,
+                      data = subset(blueFdata, temp_label == "Warm (26°C)")))$adj.r.squared
+
+cold_lbl <- paste0("Cold (18°C)  R² = ", round(r2_cold, 3))
+warm_lbl <- paste0("Warm (26°C)  R² = ", round(r2_warm, 3))
+
+blueFdata$temp_r2_label <- factor(
+    ifelse(blueFdata$temp_label == "Cold (18°C)", cold_lbl, warm_lbl),
+    levels = c(cold_lbl, warm_lbl)
+    )
+
+pal_temp_r2 <- setNames(c("#3B7DD8", "#E8712A"), c(cold_lbl, warm_lbl))
+
+pa <- ggplot(blueFdata, aes(x = avg_total_mm, y = avg_blue_mm, colour = temp_r2_label,
+                      fill = temp_r2_label, linetype = temp_r2_label)) +
+  geom_point(alpha = 0.35, size = 1) +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 1, alpha = 0.15) +
+  geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
+  scale_colour_manual(values = pal_temp_r2) +
+  scale_linetype_manual(values = setNames(c("solid", "dashed"), c(cold_lbl, warm_lbl)),
+                        guide = "none") +
+  guides(
+    colour = guide_legend(override.aes = list(fill = PAL_TEMP, alpha = 0.15,
+                                              linetype = c("solid", "dashed"))),
+    fill   = "none"
+  ) +
+  scale_fill_manual(values = pal_temp_r2, guide = "none") +
+  labs(x = "Total wing area (mm²)", y = "Wing blue area (mm²)",
+       colour = "Temperature") +
+  theme_classic() +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.20, 0.90),
+        legend.background = element_rect(colour = "grey80"),
+        axis.title = element_text(size=13),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10))
+
+ggsave(file.path(PLOT_DIR,"wingvblue.png"), pa, width = 6, height = 5, dpi = 200)
 
 #=====================================================================
 # FITNESS
@@ -349,11 +401,17 @@ abline(s, col="green")
 #Fecundity
 momfit <- read_excel("momfit.xlsx")
 momfit$motherID = as.factor(momfit$motherID)
+momfit$region = as.factor(momfit$region)
+momfit$motherscore = as.factor(momfit$motherscore)
 momfit$eggs_per_day <- momfit$total_eggs / momfit$days_alive
 momfit$z_eggs <- scale(momfit$total_eggs)
+momfit$region_label  <- ifelse(momfit$region == "O", "Öland", "Skåne")
+momfit$region_label = as.factor(momfit$region_label)
 
-m <- lm(total_eggs ~ motherscore, data=momfit)
-summary(m) # AIC 716, motherscore significant 
+m <- lm(total_eggs ~ motherscore*mom_aTWA*days_alive*region, data=momfit)
+summary(m) # AIC 710, motherscore significant 
+library(ggfortify)
+autoplot(m)
 
 m <- lm(eggs_per_day ~ motherscore, data=momfit)
 summary(m) # AIC 461, near significant
@@ -403,6 +461,47 @@ m <- glm(total_eggs ~ motherscore + days_alive + mom_aTWA + region +
          data=momfit, family=poisson)
 summary(m) # AIC 4310, days_alive near significant, all others significant
 
+m <- glm(total_eggs ~ motherscore * mom_aTWA * days_alive * region, data=momfit, family=poisson)
+summary(m) #3041.5
+
+m2 <- glmer(total_eggs ~ motherscore * mom_aTWA * days_alive * region + (1|motherID),
+            data=momfit, family=poisson, control_params)
+control_params <- glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=1000000))
+
+m3 <- glmmTMB(total_eggs ~ motherscore * region_label + days_alive + (1|motherID),
+              data=momfit, ziformula = ~1, family=nbinom1())
+
+m3a <- update(m3,.~.-motherscore:region_label)
+anova(m3a,m3)
+  
+m3b <- update(m3a,.~.+motherscore:days_alive)
+anova(m3a,m3b)
+
+library(DHARMa)
+simout <- simulateResiduals(fittedModel=m)
+plot(simout)
+testOutliers(simout)
+testOverdispersion(simout)
+testZeroInflation(simout)
+
+Anova(m3b)
+summary(m3b) #motherscore near significant
+
+library(sjPlot)
+library(interactions)
+
+cat_plot(m3b, data=momfit, modx=region_label, pred=days_alive, mod2=motherscore, interval.geom=c("linerange"))
+
+p <- plot_model(m3b, terms=c("motherscore", "region_label"), show.data=TRUE, type="pred") +
+  geom_line() +
+  labs(x = "Mother Score", y = "Total Eggs", title=NULL, colour = "Region") +
+  scale_color_manual(values = PAL_REGION) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 12),
+        legend.text = element_text(size = 9))
+ggsave(file.path(PLOT_DIR, "fecundityxblue.png"), p,
+       width = 7, height = 5, dpi = 200)
+
 #z-scale eggs?
 m <- glm(z_eggs ~ motherscore + days_alive + mom_aTWA + region +
            motherscore:region + mom_aTWA:region, data=momfit, family=gaussian)
@@ -424,6 +523,9 @@ summary(m) # AIC 135, R^2 0.40
 
 m <- glm(z_eggs ~ motherscore + days_alive + mom_aTWA + region, data=momfit, family=gaussian)
 summary(m) # AIC 137, R^2 0.40
+
+r.squaredGLMM(m)
+1- (m$deviance/m$null.deviance)
 
 dev   <- deviance(m)
 df    <- df.residual(m)
@@ -462,7 +564,7 @@ abline(lm(total_eggs ~ motherscore, data=momfit), lty=2)
     "p = ",     format.pval(p_val, digits = 3)
   )
 
-  ggplot(momfit, aes(x = motherscore, y = total_eggs)) +
+p <- ggplot(momfit, aes(x = motherscore, y = total_eggs)) +
     geom_smooth(method = "lm", colour = "black", fill = "grey70", alpha = 0.4, lty=2) +
     geom_point(size = 2.5, alpha = 0.7) +
     annotate("label",
@@ -476,8 +578,12 @@ abline(lm(total_eggs ~ motherscore, data=momfit), lty=2)
       y = "Total Eggs",
       title = "Fecundity vs Blueness",
     ) +
-    theme_bw(base_size = 13)
-
+    theme_bw(base_size = 13)+
+    theme(plot.background = element_blank(),
+          panel.background = element_blank())
+  
+  ggsave("fecundity.png", plot = p, bg = "transparent")
+  
 #============================================
 #Surivival
 survival <- read_excel("survival.xlsx")
@@ -485,10 +591,83 @@ survival <- read_excel("survival.xlsx")
 survival$motherID = as.factor(survival$motherID)
 survival$pupaeID = as.factor(survival$pupaeID)
 survival$temp = as.factor(survival$temp)
+survival$region = as.factor(survival$region)
 survival$sex = as.factor(survival$sex)
+#survival$motherscore = as.factor(survival$motherscore)
+survival$region_label  <- ifelse(survival$region == "O", "Öland", "Skåne")
+survival$temp_label <- ifelse(survival$temp == 18, "Cold (18°C)", "Warm (26°C)")
+survival$temp_label = as.factor(survival$temp_label)
+survival$region_label = as.factor(survival$region_label)
+
 
 m <- glm(survived ~ motherscore, data = survival, family = binomial)
-summary(m) # motherscore is significant
+summary(m) # AIC:1820, motherscore is significant
+
+m <- glm(survived ~ motherscore + temp + region, data = survival, family = binomial)
+summary(m) # AIC:1792, motherscore near significant, temp strongly
+#R^2= 0.01996
+
+m <- glm(survived ~ motherscore * temp * region, data = survival, family = binomial)
+summary(m) # AIC:1785
+
+
+m <- glmmTMB(survived ~ motherscore + temp + region + (1|motherID), data = survival, family = binomial)
+summary(m) # AIC:1694, motherscore NOT significant, temp strongly
+r2(m)
+
+m <- glmmTMB(survived ~ motherscore * temp * region + (1|motherID), data = survival, family = binomial)
+summary(m) #AIC: 1680
+r2(m)
+
+m <- glmmTMB(survived ~ motherscore + temp_label + region_label + 
+               motherscore:temp_label + temp_label:region_label + (1|motherID), 
+             data = survival, family = binomial)
+summary(m) #AIC: 1677
+r2(m)
+anova(m1,m2)
+plot(allEffects(m))
+
+m_cold_surv <- glm(survived ~ motherscore,
+                   data = subset(survival, temp_label == "Cold (18°C)"),
+                   family = binomial)
+m_warm_surv <- glm(survived ~ motherscore,
+                   data = subset(survival, temp_label == "Warm (26°C)"),
+                   family = binomial)
+
+r2_tjur(m_cold_surv)
+r2_tjur(m_warm_surv)
+r2_mcfadden(m_cold_surv)
+r2_mcfadden(m_warm_surv)
+
+cat_plot(m, data=survival, modx=temp_label, pred=motherscore, interval.geom=c("linerange"))
+
+library(ggeffects)                                                               
+pred_surv <- ggpredict(m, terms = c("motherscore [all]", "temp_label"))
+
+p <- ggplot(pred_surv, aes(x = x, y = predicted, colour = group, fill = group,
+                           linetype = group)) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.15, colour = NA) +
+  geom_line(linewidth = 1) +
+  geom_jitter(data = survival,
+              aes(x = motherscore, y = survived, colour = temp_label),
+              inherit.aes = FALSE,
+              width = 0.35, height = 0.03,
+              size = 2.0, alpha = 0.4) +
+  scale_colour_manual(values = PAL_TEMP, name = "Temperature") +
+  scale_fill_manual(values = PAL_TEMP, guide = "none") +
+  scale_linetype_manual(values = c("Cold (18°C)" = "dashed", "Warm (26°C)" = "solid"),
+                        guide = "none") +
+  labs(x = "Mother Score", y = "Probability of Survival", title = NULL) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 13),
+        legend.text = element_text(size = 10),
+        legend.position = "top")
+
+ggsave(file.path(PLOT_DIR, "survivalxblue.png"), p,
+       width = 7, height = 5, dpi = 200)
+
+
+m <- glm(survived ~ motherscore, data = survival, family = binomial)
 
 coefs    <- summary(m)$coef
 invlogit <- function(x) 1 / (1 + exp(-x))
@@ -539,7 +718,7 @@ ggplot(survival, aes(x = motherscore, y = survived)) +
               width = 0.35, height = 0.03,
               size = 2.0, alpha = 0.4) +
   
-  scale_colour_manual(values = c("steelblue", "orangered"),
+  scale_colour_manual(values = c("#3B7DD8","#E8712A"),
                       labels = c("Cold", "Warm"),
                       name   = "Temperature") +
   
@@ -548,7 +727,6 @@ ggplot(survival, aes(x = motherscore, y = survived)) +
                      labels = c("0", "0.25", "0.5", "0.75", "1")) +
   
   labs(
-    title    = "Likelihood of Survival by Mother Blue Score",
     subtitle = paste0("Logistic regression  |  Motherscore at mean survival (",
                       round(mean_survival * 100, 1), "%) = ",
                       round(threshold, 2)),

@@ -75,7 +75,7 @@ mvrnorm_chol <- function(mu, sigma) {
 # ── 1. Load & preprocess ────────────────────────────────────────────────────
 
 load_data <- function() {
-  df <- read.csv("blueness.csv", stringsAsFactors = FALSE)
+  df <- read.csv("bluesum.csv", stringsAsFactors = FALSE)
   df$temp_label <- ifelse(df$temp == 18, "Cold (18°C)", "Warm (26°C)")
   df$region_label  <- ifelse(df$region == "O", "Öland", "Skåne")
   df$sex_label <- ifelse(df$sex == "F", "Female", "Male") 
@@ -109,53 +109,53 @@ load_data <- function() {
 #   agg
 # }
 
-aggregate_to_individual <- function(df) {
-  group_cols <- c("offspringID", "motherID", "region", "region_label",
-                  "temp", "temp_label", "sex", "sex_label", "motherscore", 
-                  "daughterscore", "pupation_weight_g", "adult_weight_g", 
-                  "start_day", "pupa_day", "adult_day", "pupation_length", "dev_length")
-  measure_cols <- c("total_mm", "blue_mm", "prop_blue")
-  
-  # Overall averages (all 4 wings)
-  agg_all <- df %>%
-    group_by(across(all_of(group_cols))) %>%
-    summarise(across(all_of(measure_cols), mean), .groups = "drop")
-  
-  # Forewing averages (FL and FR only)
-  agg_fw <- df %>%
-    filter(wing %in% c("FL", "FR")) %>%
-    group_by(across(all_of(group_cols))) %>%
-    summarise(
-      avg_fw_total_mm  = mean(total_mm,  na.rm = TRUE),
-      avg_fw_blue_mm   = mean(blue_mm,   na.rm = TRUE),
-      avg_fw_prop_blue = mean(prop_blue, na.rm = TRUE),
-      .groups = "drop"
-    )
-  
-  # Hindwing averages (HL and HR only)
-  agg_hw <- df %>%
-    filter(wing %in% c("HL", "HR")) %>%
-    group_by(across(all_of(group_cols))) %>%
-    summarise(
-      avg_hw_total_mm  = mean(total_mm,  na.rm = TRUE),
-      avg_hw_blue_mm   = mean(blue_mm,   na.rm = TRUE),
-      avg_hw_prop_blue = mean(prop_blue, na.rm = TRUE),
-      .groups = "drop"
-    )
-  
-  # Join all three together
-  agg <- agg_all %>%
-    left_join(agg_fw, by = group_cols) %>%
-    left_join(agg_hw, by = group_cols) %>%
-    rename(
-      avg_total_mm  = total_mm,
-      avg_blue_mm   = blue_mm,
-      avg_prop_blue = prop_blue
-    ) %>%
-    as.data.frame()
-  
-  agg
-}
+# aggregate_to_individual <- function(df) {
+#   group_cols <- c("offspringID", "motherID", "region", "region_label",
+#                   "temp", "temp_label", "sex", "sex_label", "motherscore", 
+#                   "daughterscore", "pupation_weight_g", "adult_weight_g", 
+#                   "start_day", "pupa_day", "adult_day", "pupation_length", "dev_length")
+#   measure_cols <- c("total_mm", "blue_mm", "prop_blue")
+#   
+#   # Overall averages (all 4 wings)
+#   agg_all <- df %>%
+#     group_by(across(all_of(group_cols))) %>%
+#     summarise(across(all_of(measure_cols), mean), .groups = "drop")
+#   
+#   # Forewing averages (FL and FR only)
+#   agg_fw <- df %>%
+#     filter(wing %in% c("FL", "FR")) %>%
+#     group_by(across(all_of(group_cols))) %>%
+#     summarise(
+#       avg_fw_total_mm  = mean(total_mm,  na.rm = TRUE),
+#       avg_fw_blue_mm   = mean(blue_mm,   na.rm = TRUE),
+#       avg_fw_prop_blue = mean(prop_blue, na.rm = TRUE),
+#       .groups = "drop"
+#     )
+#   
+#   # Hindwing averages (HL and HR only)
+#   agg_hw <- df %>%
+#     filter(wing %in% c("HL", "HR")) %>%
+#     group_by(across(all_of(group_cols))) %>%
+#     summarise(
+#       avg_hw_total_mm  = mean(total_mm,  na.rm = TRUE),
+#       avg_hw_blue_mm   = mean(blue_mm,   na.rm = TRUE),
+#       avg_hw_prop_blue = mean(prop_blue, na.rm = TRUE),
+#       .groups = "drop"
+#     )
+#   
+#   # Join all three together
+#   agg <- agg_all %>%
+#     left_join(agg_fw, by = group_cols) %>%
+#     left_join(agg_hw, by = group_cols) %>%
+#     rename(
+#       avg_total_mm  = total_mm,
+#       avg_blue_mm   = blue_mm,
+#       avg_prop_blue = prop_blue
+#     ) %>%
+#     as.data.frame()
+#   
+#   agg
+# }
 
 # ── 2. Sample summary ───────────────────────────────────────────────────────
 
@@ -569,10 +569,9 @@ fig2_reaction_norms <- function(ind) {
     scale_x_discrete(expand = expansion(mult = 0.1)) +
     labs(x = "Temperature treatment",
          y = "Wing blueness (proportion, family mean)",
-         title = "Reaction norms: family-level response to temperature",
-         colour = "region") +
+         colour = "Region") +
     theme_classic() +
-    theme(plot.title = element_text(face = "bold", size = 13, hjust = 0.5),
+    theme(text = element_text(size = 13),
           legend.position = "inside",
           legend.position.inside = c(0.85, 0.85),
           legend.background = element_rect(colour = "grey80"))
@@ -717,14 +716,14 @@ fig4_developmental_traits <- function(ind) {
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
     scale_colour_manual(values = PAL_TEMP) +
     labs(x = "Total wing area (mm²)", y = "Wing blue area (mm²)",
-         title = "C) Wing size vs. blueness", colour = "Temperature") +
+         colour = "Temperature") +
     theme_classic() +
-    theme(plot.title = element_text(face = "bold", hjust = 0.5),
-          legend.position = "inside",
-          legend.position.inside = c(0.8, 0.85),
+    theme(legend.position = "inside",
+          legend.position.inside = c(0.15, 0.85),
           legend.background = element_rect(colour = "grey80"),
-          legend.text = element_text(size = 8),
-          legend.title = element_text(size = 9))
+          axis.title = element_text(size=13),
+          legend.text = element_text(size = 10),
+          legend.title = element_text(size = 10))
 
   combined <- grid.arrange(p1, p2, p3, ncol = 3)
   ggsave(file.path(PLOT_DIR, "fig4_developmental_traits_r.png"), combined,
@@ -878,8 +877,8 @@ fig6_floor_effect_tobit <- function(ind, naive_results, tobit_results) {
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 main <- function() {
-  df  <- load_data()
-  ind <- aggregate_to_individual(df)
+  ind  <- load_data()
+  #ind <- aggregate_to_individual(df)
   #subset ind for sexes
   ind <- subset(ind, sex=="F")
 

@@ -419,7 +419,7 @@ plot(model)
 pp_check(model, ndraws = 100)
 
 #########################################
-# EXTRACT GENETIC PARAMETERS
+# EXTRACT GENETIC PARAMETERS: VA
 #########################################
 
 summary(model)
@@ -663,3 +663,87 @@ h2_violin <- ggplot(h2_draws, aes(x = Group, y = h2, fill = Group)) +
 h2_violin
 
 ggsave(file.path(PLOT_DIR,"h2_violin.png"), h2_violin, width = 7, height = 5, dpi = 300)
+
+
+################################
+# EVOLVABILITY
+################################
+
+# VA/mean blueness per environment
+env_means <- data %>%
+  group_by(Region, Temperature) %>%
+  summarise(Mean = mean(Blueness),.groups = "drop") %>%
+  arrange(Region, Temperature) %>%
+  as.data.frame()
+
+mean_ocold <- env_means[1,3]
+mean_owarm <- env_means[2,3]
+mean_scold <- env_means[3,3]
+mean_swarm <- env_means[4,3]
+
+# Evolvability = VA / mean^2
+e_ocold <- va_ocold / (mean_ocold^2)
+e_scold <- va_scold / (mean_scold^2)
+e_owarm <- va_owarm / (mean_owarm^2)
+e_swarm <- va_swarm / (mean_swarm^2)
+
+cat("\nEvolvability (e = VA/mean^2):\n")
+cat("  Evolvability Öland Cold:", fmt(e_ocold), "\n")
+cat("  Evolvability Öland Warm:", fmt(e_owarm), "\n")
+cat("  Evolvability Skåne Cold:", fmt(e_scold), "\n")
+cat("  Evolvability Skåne Warm:", fmt(e_swarm), "\n")
+
+#============================================
+
+e_draws <- tibble(
+  `Öland Cold` = e_ocold,
+  `Öland Warm` = e_owarm,
+  `Skåne Cold` = e_scold,
+  `Skåne Warm` = e_swarm
+) %>%
+  pivot_longer(everything(), names_to = "Group", values_to = "e") %>%
+  mutate(Group = factor(Group, levels = c("Öland Cold", "Öland Warm",
+                                          "Skåne Cold", "Skåne Warm")))
+
+e_summary <- e_draws %>%
+  group_by(Group) %>%
+  summarise(
+    post_mean = mean(e),
+    lo  = quantile(e, 0.025),
+    hi  = quantile(e, 0.975),
+    .groups = "drop"
+  )
+
+print(e_summary)
+
+e_violin <- ggplot(e_draws, aes(x = Group, y = e, fill = Group)) +
+  geom_violin(trim = FALSE, alpha = 0.75, colour = NA) +
+  geom_linerange(
+    data = e_summary,
+    aes(x = Group, ymin = lo, ymax = hi),
+    inherit.aes = FALSE,
+    linetype = "dashed", colour = "grey30"
+  ) +
+  geom_errorbar(
+    data = e_summary,
+    aes(x = Group, ymin = post_mean, ymax = post_mean),
+    inherit.aes = FALSE,
+    width = 0.25, linewidth = 0.8
+  ) +
+  geom_vline(xintercept = 2.5, colour = "grey40", linewidth = 0.5) +
+  scale_y_continuous(limits = c(0,10)) +
+  scale_fill_manual(values = c("Öland Cold" = "#3B7DD8", 
+                               "Öland Warm" = "#E8712A", 
+                               "Skåne Cold" = "#3B7DD8", 
+                               "Skåne Warm" = "#E8712A")) +
+  labs(x = NULL,
+       y = expression("Evolvability (e)"),
+       title = NULL) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(axis.title = element_text(size = 15),
+        axis.text = element_text(size = 13))
+
+e_violin
+
+ggsave(file.path(PLOT_DIR,"e_violin.png"), e_violin, width = 7, height = 5, dpi = 300)

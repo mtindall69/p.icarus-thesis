@@ -59,6 +59,15 @@ bluesum$region = as.factor(bluesum$region)
 bluesum$temp = as.factor(bluesum$temp)
 bluesum$sex = as.factor(bluesum$sex)
 
+#subset data
+blueFdata <- subset(bluesum, sex=="F")
+
+# z-score blue area
+blueFdata <- blueFdata %>%
+  mutate(
+    z_blue_mm = scale(avg_blue_mm)
+  )
+
 # # mutate to set Blueness values below 0.5% to zero
 # bluesum <- bluesum %>%
 #   mutate(
@@ -72,10 +81,6 @@ bluesum$sex = as.factor(bluesum$sex)
 #     avg_blue_mm = if_else(avg_blue_mm == 0, 0.001, avg_blue_mm),
 #     logblue = log(avg_blue_mm)
 #   )
-
-#subset data
-blueFdata <- subset(bluesum, sex=="F")
-blueMdata <- subset(bluesum, sex=="M")
 
 
 n_families <- length(unique(blueFdata$motherID)) # 42 families
@@ -91,7 +96,7 @@ data <- blueFdata %>%
     Region = as.factor(region_label)
   ) %>%
   dplyr::select(animal, MotherID, FatherID, Temperature, Region, TotalArea = avg_total_mm, 
-         Blueness = avg_blue_mm)#, LogBlueness = logblue)
+         Blueness = avg_blue_mm, ZBlueness = z_blue_mm)
 
 ##############################################
 # 2. Create Pedigree
@@ -104,7 +109,9 @@ pedigree <- data.frame(
 
 # Create relatedness matrix for brms
 Amat <- as.matrix(nadiv::makeA(pedigree)) 
-# Forces full-sibs- gives conservative estimate of heritability
+# Forces full-sibs- overestimate but more accurate than assuming half-sibs
+# for this experimental design where we don't have paternal information and 
+# can't separate maternal from additive genetic effects.
 
 
 ##############################################
@@ -360,6 +367,7 @@ Amat <- as.matrix(nadiv::makeA(pedigree))
 # BACK TO GAUSSIAN - SIMPLE MODEL
 #########################################
 
+# Raw blueness
 model <- brm(
   Blueness ~ TotalArea + Temperature + Region + 
     TotalArea:Temperature + Temperature:Region + 
@@ -373,6 +381,22 @@ model <- brm(
 # 9/12000 (0%) divergence, 3/4 chains had E-BFMI < 0.3
 # pp check looks ok, 5 Rhats > 1.00
 # some estimate errors quite high
+# VA OCold: 70 [49, 96], VA OWarm: 21 [10,35]
+# VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
+
+# z-score blueness
+model <- brm(
+  ZBlueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 9/12000 (0%) divergence, 3/4 chains had E-BFMI < 0.3
+# pp check looks ok, 5 Rhats > 1.00
 # VA OCold: 70 [49, 96], VA OWarm: 21 [10,35]
 # VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
 
@@ -390,22 +414,69 @@ model <- brm(
 # # 22/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
 # # pp check looks good, 7 Rhats > 1.00, 3 = 1.02
 # # estimate errors also high
-# 
-# # Now for total area to get correlation of blueness va to area va
-# model <- brm(
-#   TotalArea ~ Temperature + Region + Temperature:Region + 
-#     (0 + Temperature:Region | gr(animal, cov = Amat)),
-#   data = data,
-#   data2 = list(Amat = Amat),
-#   family = gaussian(),
-#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-#   control = list(adapt_delta = 0.95, max_treedepth = 12)
-#)
+
+# Total Area
+model <- brm(
+  TotalArea ~ Temperature + Region + Temperature:Region +
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
 # 12/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
 # pp check looks ok, 8 Rhats (& sigma) > 1.00
 # VA OCold: 128 [72, 197], VA OWarm: 133 [50,241]
 # VA SCold: 123 [58, 208], VA SWarm: 163 [71, 278]
 
+# Global model, no random slopes
+model <- brm(
+  Blueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (1 | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 29/12000 (0%) divergence, 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, but Intercept and sigma Rhat very high 1.05, 1.06
+# partially not converged
+# VA global: 44.024 [25.464, 63.389]
+
+# area global model
+model <- brm(
+  TotalArea ~ Temperature + Region + Temperature:Region + 
+    (1 | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 1/12000 (0%) divergence, 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, Intercept and sigma Rhat 1.01
+# VA global: 126.291 [70.123, 200.810]
+
+# Model with family random slopes
+model <- brm(
+  Blueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (0 + MotherID:Temperature | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 9/12000 (0%) divergence, 3/4 chains had E-BFMI < 0.3
+# pp check looks ok, 5 Rhats > 1.00
+# some estimate errors quite high
+# VA OCold: 70 [49, 96], VA OWarm: 21 [10,35]
+# VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
+# estimate values should not be so high??
 
 #########################################
 # CHECK CONVERGENCE AND FIT
@@ -428,7 +499,7 @@ print(vc)
 
 # Helper function for formatting posterior summaries
 fmt <- function(x) sprintf("%.3f [%.3f, %.3f]",
-                           mean(x), quantile(x, 0.03), quantile(x, 0.97))
+                           mean(x), quantile(x, 0.025), quantile(x, 0.975))
 
 # Extract posterior draws for variance components
 draws <- as_draws_df(model)
@@ -439,28 +510,32 @@ va_scold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionSkåne`
 va_owarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionÖland`
 va_swarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`
 
-# Always extract animal SD column names for fallback use
-animal_sd_cols <- grep("^sd_animal__", names(draws), value = TRUE)
+va_sd <- draws$'sd_animal__Intercept'
+va_global <- va_sd^2
+fmt(va_global)
 
-# If the column names don't match, try to find them
-if (is.null(va_ocold_sd)) {
-  # brms may name factor levels differently — search for the right columns
-  cat("\nAnimal SD columns found:", paste(animal_sd_cols, collapse = ", "), "\n")
-  
-  if (length(animal_sd_cols) >= 2) {
-    va_cold_sd <- draws[[animal_sd_cols[1]]]
-    va_warm_sd <- draws[[animal_sd_cols[2]]]
-    cat("Using:", animal_sd_cols[1], "as VA_cold_sd\n")
-    cat("Using:", animal_sd_cols[2], "as VA_warm_sd\n")
-  }
-}
-
-# Genetic correlation
-cor_cols <- grep("^cor_animal__", names(draws), value = TRUE)
-if (length(cor_cols) > 0) {
-  rG <- draws[[cor_cols[1]]]
-  cat("\nUsing:", cor_cols[1], "as genetic correlation\n")
-}
+# # Always extract animal SD column names for fallback use
+# animal_sd_cols <- grep("^sd_animal__", names(draws), value = TRUE)
+# 
+# # If the column names don't match, try to find them
+# if (is.null(va_ocold_sd)) {
+#   # brms may name factor levels differently — search for the right columns
+#   cat("\nAnimal SD columns found:", paste(animal_sd_cols, collapse = ", "), "\n")
+#   
+#   if (length(animal_sd_cols) >= 2) {
+#     va_cold_sd <- draws[[animal_sd_cols[1]]]
+#     va_warm_sd <- draws[[animal_sd_cols[2]]]
+#     cat("Using:", animal_sd_cols[1], "as VA_cold_sd\n")
+#     cat("Using:", animal_sd_cols[2], "as VA_warm_sd\n")
+#   }
+# }
+# 
+# # Genetic correlation
+# cor_cols <- grep("^cor_animal__", names(draws), value = TRUE)
+# if (length(cor_cols) > 0) {
+#   rG <- draws[[cor_cols[1]]]
+#   cat("\nUsing:", cor_cols[1], "as genetic correlation\n")
+# }
 
 if (!is.null(va_ocold_sd)) {
   va_ocold <- va_ocold_sd^2
@@ -567,6 +642,7 @@ vp_summary <- blueFdata %>%
   summarise(
     n       = n(),
     VP      = var(avg_blue_mm, na.rm = TRUE),
+    SD      = sd(avg_blue_mm, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -579,10 +655,15 @@ vp_owarm <- vp_summary$VP[vp_summary$region_label == "Öland" & grepl("Warm", vp
 vp_scold <- vp_summary$VP[vp_summary$region_label == "Skåne" & grepl("Cold", vp_summary$temp_label)]
 vp_swarm <- vp_summary$VP[vp_summary$region_label == "Skåne" & grepl("Warm", vp_summary$temp_label)]
 
-cat("VP Öland Cold:", vp_ocold, "\n")
-cat("VP Öland Warm:", vp_owarm, "\n")
-cat("VP Skåne Cold:", vp_scold, "\n")
-cat("VP Skåne Warm:", vp_swarm, "\n")
+sd_ocold <- sqrt(vp_ocold)
+sd_owarm <- sqrt(vp_owarm)
+sd_scold <- sqrt(vp_scold)
+sd_swarm <- sqrt(vp_swarm)
+
+cat("VP Öland Cold:", vp_ocold, sd_ocold, "\n")
+cat("VP Öland Warm:", vp_owarm, sd_owarm, "\n")
+cat("VP Skåne Cold:", vp_scold, sd_scold, "\n")
+cat("VP Skåne Warm:", vp_swarm, sd_swarm, "\n")
 
 # h² = VA/VP — divide each posterior draw of VA by the scalar VP
 h2_ocold <- va_ocold / vp_ocold
@@ -731,7 +812,7 @@ e_violin <- ggplot(e_draws, aes(x = Group, y = e, fill = Group)) +
     width = 0.25, linewidth = 0.8
   ) +
   geom_vline(xintercept = 2.5, colour = "grey40", linewidth = 0.5) +
-  scale_y_continuous(limits = c(0,10)) +
+  scale_y_continuous(limits = c(0,9)) +
   scale_fill_manual(values = c("Öland Cold" = "#3B7DD8", 
                                "Öland Warm" = "#E8712A", 
                                "Skåne Cold" = "#3B7DD8", 

@@ -94,9 +94,6 @@ bluesum$motherID = as.factor(bluesum$motherID)
 bluesum$region = as.factor(bluesum$region)
 bluesum$temp = as.factor(bluesum$temp)
 bluesum$sex = as.factor(bluesum$sex)
-bluesum$temp_label <- ifelse(bluesum$temp == 18, "Cold (18°C)", "Warm (26°C)")
-bluesum$region_label  <- ifelse(bluesum$region == "O", "Öland", "Skåne")
-bluesum$sex_label <- ifelse(bluesum$sex == "F", "Female", "Male")
 
 #subset data
 blueFdata <- subset(bluesum, sex=="F")

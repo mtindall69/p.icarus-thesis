@@ -68,6 +68,9 @@ blueFdata <- blueFdata %>%
     z_blue_mm = scale(avg_blue_mm)
   )
 
+oblueFdata <- subset(blueFdata, region_label=="Öland")
+sblueFdata <- subset(blueFdata, region_label=="Skåne")
+
 # # mutate to set Blueness values below 0.5% to zero
 # bluesum <- bluesum %>%
 #   mutate(
@@ -86,6 +89,12 @@ blueFdata <- blueFdata %>%
 n_families <- length(unique(blueFdata$motherID)) # 42 families
 n_offspring <- length(blueFdata$offspringID) # 327 daughters
 
+# region subsets
+# on_families <- length(unique(oblueFdata$motherID)) # 25 families
+# on_offspring <- length(oblueFdata$offspringID) # 175 daughters
+# sn_families <- length(unique(sblueFdata$motherID)) # 17 families
+# sn_offspring <- length(sblueFdata$offspringID) # 152 daughters
+
 # Create data frame
 data <- blueFdata %>%
   mutate(
@@ -98,6 +107,17 @@ data <- blueFdata %>%
   dplyr::select(animal, MotherID, FatherID, Temperature, Region, TotalArea = avg_total_mm, 
          Blueness = avg_blue_mm, ZBlueness = z_blue_mm)
 
+#region subsets
+# data <- sblueFdata %>%
+#   mutate(
+#     animal = paste0("ind", offspringID),
+#     MotherID = (paste0("mom", motherID)),
+#     FatherID = (gsub("mom", "dad", MotherID)), # Assuming fatherID is "dad" + motherID)
+#     Temperature = as.factor(temp_label)
+#   ) %>%
+#   dplyr::select(animal, MotherID, FatherID, Temperature, TotalArea = avg_total_mm, 
+#                 Blueness = avg_blue_mm, ZBlueness = z_blue_mm)
+
 ##############################################
 # 2. Create Pedigree
 ##############################################
@@ -109,7 +129,7 @@ pedigree <- data.frame(
 
 # Create relatedness matrix for brms
 Amat <- as.matrix(nadiv::makeA(pedigree)) 
-# Forces full-sibs- overestimate but more accurate than assuming half-sibs
+# Forces full-sibs- still overestimate but more accurate than assuming half-sibs
 # for this experimental design where we don't have paternal information and 
 # can't separate maternal from additive genetic effects.
 
@@ -385,20 +405,16 @@ model <- brm(
 # VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
 
 # z-score blueness
-model <- brm(
-  ZBlueness ~ TotalArea + Temperature + Region + 
-    TotalArea:Temperature + Temperature:Region + 
-    (0 + Temperature:Region | gr(animal, cov = Amat)),
-  data = data,
-  data2 = list(Amat = Amat),
-  family = gaussian(),
-  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
-  control = list(adapt_delta = 0.95, max_treedepth = 12)
-)
-# 9/12000 (0%) divergence, 3/4 chains had E-BFMI < 0.3
-# pp check looks ok, 5 Rhats > 1.00
-# VA OCold: 70 [49, 96], VA OWarm: 21 [10,35]
-# VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
+# model <- brm(
+#   ZBlueness ~ TotalArea + Temperature + Region + 
+#     TotalArea:Temperature + Temperature:Region + 
+#     (0 + Temperature:Region | gr(animal, cov = Amat)),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = gaussian(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12)
+# )
 
 #logged outcomes - modified data so 7 zeros were replaced with small constant
 # model <- brm(
@@ -460,23 +476,61 @@ model <- brm(
 # pp check looks ok, Intercept and sigma Rhat 1.01
 # VA global: 126.291 [70.123, 200.810]
 
-# Model with family random slopes
+# region subsets blue
 model <- brm(
-  Blueness ~ TotalArea + Temperature + Region + 
-    TotalArea:Temperature + Temperature:Region + 
-    (0 + MotherID:Temperature | gr(animal, cov = Amat)),
+  Blueness ~ TotalArea + Temperature + TotalArea:Temperature + 
+    (0 + Temperature | gr(animal, cov = Amat)),
   data = data,
   data2 = list(Amat = Amat),
   family = gaussian(),
   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
   control = list(adapt_delta = 0.95, max_treedepth = 12)
 )
-# 9/12000 (0%) divergence, 3/4 chains had E-BFMI < 0.3
-# pp check looks ok, 5 Rhats > 1.00
-# some estimate errors quite high
-# VA OCold: 70 [49, 96], VA OWarm: 21 [10,35]
-# VA SCold: 54 [35, 77], VA SWarm: 8 [2, 16]
-# estimate values should not be so high??
+# Oland
+# 314/12000 (3%) divergence, 4/4 chains had E-BFMI < 0.3
+# pp check looks good, 4 Rhats > 1.00, temp random slopes and sigma >1.01
+# temp estimate error quite high
+# VA OCold: 67 [40, 98], VA OWarm: 21 [7, 41]
+# Skane
+# 170/12000 (1%) divergence, 4/4 chains had E-BFMI < 0.3
+# pp check looks wonky, sigma Rhat 1.14 temp random slopes 1.05-1.09
+# VA SCold: 58 [36, 84], VA SWarm: 12 [3, 23]
+
+
+# region subsets area
+model <- brm(
+  TotalArea ~ Temperature + (0 + Temperature | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# Oland
+# 42/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, All 4 Rhats (& sigma) >> 1.00
+# VA OCold: 149 [78, 227], VA OWarm: 160 [54, 273]
+# Skane
+# 21/12000 (0%) divergences, 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, 3 Rhats (& sigma) >> 1.00
+# VA SCold: 113 [43, 211], VA SWarm: 146 [45, 282]
+
+# Model for family random slopes
+model <- brm(
+  Blueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (0 + Temperature | MotherID) +
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 3/12000 (0%) divergence, 4/4 chains had E-BFMI < 0.3
+# pp check looks good, no > 1.01, 5 Rhats > 1
+# some estimate errors quite high - temp and intercept
+
 
 #########################################
 # CHECK CONVERGENCE AND FIT
@@ -513,6 +567,23 @@ va_swarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`
 va_sd <- draws$'sd_animal__Intercept'
 va_global <- va_sd^2
 fmt(va_global)
+
+# region subsets
+va_cold_sd <- draws$`sd_animal__TemperatureCold18°C`
+va_warm_sd <- draws$`sd_animal__TemperatureWarm26°C`
+va_cold <- va_cold_sd^2
+va_warm <- va_warm_sd^2
+fmt(va_cold)
+fmt(va_warm)
+
+# mother SDs
+va_cold_mother_sd <- draws$`sd_MotherID__TemperatureCold18°C`
+va_warm_mother_sd <- draws$`sd_MotherID__TemperatureWarm26°C`
+va_cold_mother <- va_cold_mother_sd^2
+va_warm_mother <- va_warm_mother_sd^2
+fmt(va_cold_mother)
+fmt(va_warm_mother)
+
 
 # # Always extract animal SD column names for fallback use
 # animal_sd_cols <- grep("^sd_animal__", names(draws), value = TRUE)

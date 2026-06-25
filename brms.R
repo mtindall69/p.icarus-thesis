@@ -8,7 +8,7 @@ setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/")
 
 #load packages
 pacman::p_load(tidyverse,brms,nadiv,emmeans,tidybayes,broom,broom.mixed,
-               patchwork,ggh4x,ggtext,MetBrewer,dplyr)
+               patchwork,ggh4x,ggtext,MetBrewer,dplyr,grid,gridExtra)
 
 PLOT_DIR <- file.path("plots")
 
@@ -46,6 +46,8 @@ theme_nice <- function() {
           strip.background = element_rect(fill = "grey80", color = NA))
 }
 
+PAL_REGION  <- c("Öland" = "#2CA02C", "Skåne" = "#9467BD")
+
 ######################################
 # 1. PREPROCESSING
 ######################################
@@ -68,8 +70,8 @@ blueFdata <- blueFdata %>%
     z_blue_mm = scale(avg_blue_mm)
   )
 
-oblueFdata <- subset(blueFdata, region_label=="Öland")
-sblueFdata <- subset(blueFdata, region_label=="Skåne")
+# oblueFdata <- subset(blueFdata, region_label=="Öland")
+# sblueFdata <- subset(blueFdata, region_label=="Skåne")
 
 # # mutate to set Blueness values below 0.5% to zero
 # bluesum <- bluesum %>%
@@ -385,7 +387,9 @@ Amat <- as.matrix(nadiv::makeA(pedigree))
 
 #########################################
 # BACK TO GAUSSIAN - SIMPLE MODEL
-#########################################
+
+# REGION EFFECTS
+#===============
 
 # Raw blueness
 model <- brm(
@@ -515,7 +519,10 @@ model <- brm(
 # pp check looks ok, 3 Rhats (& sigma) >> 1.00
 # VA SCold: 113 [43, 211], VA SWarm: 146 [45, 282]
 
-# Model for family random slopes
+#=========================
+# FAMILY EFFECTS
+#=========================
+
 model <- brm(
   Blueness ~ TotalArea + Temperature + Region + 
     TotalArea:Temperature + Temperature:Region + 
@@ -527,14 +534,116 @@ model <- brm(
   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
   control = list(adapt_delta = 0.95, max_treedepth = 12)
 )
+saveRDS(model, "full_model.rds")
 # 3/12000 (0%) divergence, 4/4 chains had E-BFMI < 0.3
 # pp check looks good, no > 1.01, 5 Rhats > 1
 # some estimate errors quite high - temp and intercept
+# BEST SO FAR
+
+# LOO model comparison
+model <- brm(
+  Blueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (1 | MotherID) + # families constrained to have same slope
+    (0 + Temperature:Region | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 0/12000 (0%) divergence
+# pp check looks ok, 6 Rhats 1.01
+# comparable fit
+
+loo_full <- loo(model_full)
+loo_reduced <- loo(model_reduced)
+loo_compare(loo_full, loo_reduced)
+
+
+model <- brm(
+  Blueness ~ TotalArea + Temperature + Region + 
+    TotalArea:Temperature + Temperature:Region + 
+    (0 + Temperature | MotherID) +
+    (1 | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 701/12000 (6%) divergence, 2/4 chains had E-BFMI < 0.3
+# pp check bad, 2 > 1.01
+
+
+# mother as a fixed effect - NO REGION
+model <- brm(
+  Blueness ~ TotalArea + Temperature +
+    TotalArea:Temperature + Temperature:MotherID +
+    (0 + Temperature | MotherID) +
+    (1 | gr(animal, cov = Amat)),
+  data = data,
+  data2 = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+# 258/12000 (2%) divergence, 167/12000 (1%) hit max treedpeth
+# 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, 7 Rhats >> 1.01
+
+
+# model <- brm(
+#   Blueness ~ TotalArea + Temperature + Region + 
+#     TotalArea:Temperature + Temperature:MotherID + 
+#     (0 + Temperature | MotherID) +
+#     (0 + Temperature:Region | gr(animal, cov = Amat)),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = gaussian(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12)
+# )
+# 105/12000 (1%) divergence, 11895/12000 (99%) hit max treedepth
+# 4/4 chains had E-BFMI < 0.3
+# pp check looks good, Rhats horrible
+# BAD
+
+
+# model <- brm(
+#   Blueness ~ TotalArea + Temperature +
+#     TotalArea:Temperature + Temperature:MotherID +
+#     (0 + Temperature | MotherID),
+#   data = data,
+#   family = gaussian(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12)
+# )
+# 2624/12000 (22%) divergence BAD, 50/12000 hit max treedepth
+# pp check BAD, Rhats horrible
+# DO NOT REMOVE ANIMAL MODEL
+
+# model <- brm(
+#   Blueness ~ TotalArea + Temperature +
+#     TotalArea:Temperature + Temperature:MotherID +
+#     (1 | gr(animal, cov = Amat)),
+#   data = data,
+#   data2 = list(Amat = Amat),
+#   family = gaussian(),
+#   chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+#   control = list(adapt_delta = 0.95, max_treedepth = 12)
+# )
+# 152/12000 (1%) divergence BAD, 572/12000 (5%) hit max treedepth
+# 4/4 chains had E-BFMI < 0.3
+# pp check looks ok, 7 Rhats >> 1.01
+# not great either
+
 
 
 #########################################
 # CHECK CONVERGENCE AND FIT
 #########################################
+model <- readRDS("full_model.rds")
 
 n_div <- sum(subset(nuts_params(model), Parameter == "divergent__")$Value)
 cat("Divergences:", n_div, "/",
@@ -543,47 +652,35 @@ cat("Divergences:", n_div, "/",
 plot(model)
 pp_check(model, ndraws = 100)
 
-#########################################
-# EXTRACT GENETIC PARAMETERS: VA
-#########################################
-
 summary(model)
-vc <- VarCorr(model)
-print(vc)
 
 # Helper function for formatting posterior summaries
 fmt <- function(x) sprintf("%.3f [%.3f, %.3f]",
                            mean(x), quantile(x, 0.025), quantile(x, 0.975))
 
+#################################################
+
 # Extract posterior draws for variance components
 draws <- as_draws_df(model)
 
-# Additive genetic SDs by temperature and region (random slope SDs) 
-va_ocold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionÖland`
-va_scold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionSkåne`
-va_owarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionÖland`
-va_swarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`
+# fixed effects probability of direction
+bayestestR::p_direction(model)
 
-va_sd <- draws$'sd_animal__Intercept'
-va_global <- va_sd^2
-fmt(va_global)
+# DO FAMILY SLOPES DIFFER
+# Extract posterior draws of the variance components
+slope_var <- as_draws_df(model) |>
+  mutate(
+    slope_sd = sqrt(
+      `sd_MotherID__TemperatureWarm26°C`^2 +
+        `sd_MotherID__TemperatureCold18°C`^2 -
+        2 * `cor_MotherID__TemperatureCold18°C__TemperatureWarm26°C` *
+        `sd_MotherID__TemperatureCold18°C` *
+        `sd_MotherID__TemperatureWarm26°C`
+    )
+  )
 
-# region subsets
-va_cold_sd <- draws$`sd_animal__TemperatureCold18°C`
-va_warm_sd <- draws$`sd_animal__TemperatureWarm26°C`
-va_cold <- va_cold_sd^2
-va_warm <- va_warm_sd^2
-fmt(va_cold)
-fmt(va_warm)
-
-# mother SDs
-va_cold_mother_sd <- draws$`sd_MotherID__TemperatureCold18°C`
-va_warm_mother_sd <- draws$`sd_MotherID__TemperatureWarm26°C`
-va_cold_mother <- va_cold_mother_sd^2
-va_warm_mother <- va_warm_mother_sd^2
-fmt(va_cold_mother)
-fmt(va_warm_mother)
-
+fmt(slope_var$slope_sd)
+# 1.925 [0.338,4.202] - excludes 0, suggests family-level GxE for temperature
 
 # # Always extract animal SD column names for fallback use
 # animal_sd_cols <- grep("^sd_animal__", names(draws), value = TRUE)
@@ -600,13 +697,131 @@ fmt(va_warm_mother)
 #     cat("Using:", animal_sd_cols[2], "as VA_warm_sd\n")
 #   }
 # }
+
+#########################################
+# RAW GENETIC CORRELATIONS (within region)
+# rG(Cold, Warm) from family mean correlations
+#########################################
+
+# Family means per temperature × region
+family_means <- data %>%
+  group_by(MotherID, Region, Temperature) %>%
+  summarise(
+    mean_blue = mean(Blueness, na.rm = TRUE),
+    n_obs     = n(),
+    .groups   = "drop"
+  )
+
+# Pivot so each temperature is a column
+family_wide <- family_means %>%
+  pivot_wider(
+    id_cols    = c(MotherID, Region),
+    names_from = Temperature,
+    values_from = mean_blue
+  )
+
+# Pearson correlation of family means between temperatures, by region
+rG_raw <- family_wide %>%
+  group_by(Region) %>%
+  summarise(
+    n_families = n(),
+    rG         = cor(`Cold (18°C)`, `Warm (26°C)`, use = "pairwise.complete.obs"),
+    .groups    = "drop"
+  )
+print(rG_raw)
+# Öland: rG = 0.653 (n=25), Skåne: rG = 0.825 (n=17)
+
+# Bootstrap 95% CIs (families are the sampling unit)
+set.seed(BAYES_SEED)
+n_boot <- 5000
+
+boot_rG <- function(df, region_name) {
+  d <- filter(df, Region == region_name)
+  replicate(n_boot, {
+    s <- d[sample(nrow(d), replace = TRUE), ]
+    cor(s[[3]], s[[4]], use = "pairwise.complete.obs")  # cols 3,4 are the two temps
+  })
+}
+
+boot_oland <- boot_rG(family_wide, "Öland")
+boot_skane <- boot_rG(family_wide, "Skåne")
+
+cat("rG Öland (Cold↔Warm):", fmt(boot_oland), "\n")
+cat("rG Skåne (Cold↔Warm):", fmt(boot_skane), "\n")
+# rG Öland (Cold↔Warm): 0.659 [0.413, 0.852]
+# rG Skåne (Cold↔Warm): 0.810 [0.448, 0.952]
+
+# Genetic correlations between family effects across temperatures
+mom_cors <- draws$`cor_MotherID__TemperatureCold18°C__TemperatureWarm26°C`
+fmt(mom_cors)
+# 0.528 [-0.813,0.993] - CI includes 0, but mean suggests some positive 
+# correlation between family effects across temperatures, so not strong GxE 
+# at family level
+
+# Extract all 6 genetic correlations from the Temperature:Region animal random effect
+rG_draws <- as_draws_df(model) |>
+  select(starts_with("cor_animal__"))
+
+# Rename to readable labels (check column names first with: names(rG_draws))
+rG_summary <- rG_draws |>
+  rename(
+      rG_OCold_OWarm  =
+  `cor_animal__TemperatureCold18°C:RegionÖland__TemperatureWarm26°C:RegionÖland`,
+      rG_SCold_SWarm  =
+  `cor_animal__TemperatureCold18°C:RegionSkåne__TemperatureWarm26°C:RegionSkåne`,
+      
+      rG_OCold_SCold  =
+  `cor_animal__TemperatureCold18°C:RegionÖland__TemperatureCold18°C:RegionSkåne`,
+      rG_OWarm_SWarm  =
+  `cor_animal__TemperatureWarm26°C:RegionÖland__TemperatureWarm26°C:RegionSkåne`,
+      
+      rG_OCold_SWarm  =
+  `cor_animal__TemperatureCold18°C:RegionÖland__TemperatureWarm26°C:RegionSkåne`,
+      rG_OWarm_SCold  =
+  `cor_animal__TemperatureWarm26°C:RegionÖland__TemperatureCold18°C:RegionSkåne`
+    ) |>
+    pivot_longer(everything(), names_to = "Correlation", values_to = "rG") |>
+    group_by(Correlation) |>
+    summarise(
+      mean  = mean(rG),
+      lower = quantile(rG, 0.025),
+      upper = quantile(rG, 0.975),
+      p_lt1 = mean(rG < 1),    # P(GxE exists)
+      p_lt0.8 = mean(rG < 0.8) # P(biologically meaningful GxE)
+    )
+print(rG_summary)
+
+
+#########################################
+# EXTRACT GENETIC PARAMETERS: VA
+#########################################
+
+# Additive genetic SDs by temperature and region (random slope SDs) 
+va_ocold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionÖland`
+va_scold_sd <- draws$`sd_animal__TemperatureCold18°C:RegionSkåne`
+va_owarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionÖland`
+va_swarm_sd <- draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`
+
+# va_sd <- draws$'sd_animal__Intercept'
+# va_global <- va_sd^2
+# fmt(va_global)
 # 
-# # Genetic correlation
-# cor_cols <- grep("^cor_animal__", names(draws), value = TRUE)
-# if (length(cor_cols) > 0) {
-#   rG <- draws[[cor_cols[1]]]
-#   cat("\nUsing:", cor_cols[1], "as genetic correlation\n")
-# }
+# # region subsets
+# va_cold_sd <- draws$`sd_animal__TemperatureCold18°C`
+# va_warm_sd <- draws$`sd_animal__TemperatureWarm26°C`
+# va_cold <- va_cold_sd^2
+# va_warm <- va_warm_sd^2
+# fmt(va_cold)
+# fmt(va_warm)
+
+# mother SDs
+va_cold_mother_sd <- draws$`sd_MotherID__TemperatureCold18°C`
+va_warm_mother_sd <- draws$`sd_MotherID__TemperatureWarm26°C`
+va_cold_mother <- va_cold_mother_sd^2
+va_warm_mother <- va_warm_mother_sd^2
+fmt(va_cold_mother)
+fmt(va_warm_mother)
+
 
 if (!is.null(va_ocold_sd)) {
   va_ocold <- va_ocold_sd^2
@@ -736,6 +951,16 @@ cat("VP Öland Warm:", vp_owarm, sd_owarm, "\n")
 cat("VP Skåne Cold:", vp_scold, sd_scold, "\n")
 cat("VP Skåne Warm:", vp_swarm, sd_swarm, "\n")
 
+# # mother:temp VPs
+# vp_cold <- vp_summary$VP[grepl("Cold", vp_summary$temp_label)]
+# vp_warm <- vp_summary$VP[grepl("Warm", vp_summary$temp_label)]
+# 
+# sd_cold <- sqrt(vp_cold)
+# sd_warm <- sqrt(vp_warm)
+# 
+# cat("VP Cold:", vp_cold, sd_cold, "\n")
+# cat("VP Warm:", vp_warm, sd_warm, "\n")
+
 # h² = VA/VP — divide each posterior draw of VA by the scalar VP
 h2_ocold <- va_ocold / vp_ocold
 h2_owarm <- va_owarm / vp_owarm
@@ -747,6 +972,13 @@ cat("  h² Öland Cold:", fmt(h2_ocold), "\n")
 cat("  h² Öland Warm:", fmt(h2_owarm), "\n")
 cat("  h² Skåne Cold:", fmt(h2_scold), "\n")
 cat("  h² Skåne Warm:", fmt(h2_swarm), "\n")
+
+# # mother:temp h²
+# h2_cold <- va_cold_mother / vp_cold
+# h2_warm <- va_warm_mother / vp_warm
+# 
+# cat("  h² Cold:", fmt(h2_cold), "\n")
+# cat("  h² Warm:", fmt(h2_warm), "\n")
 
 #============================================
 
@@ -899,3 +1131,335 @@ e_violin <- ggplot(e_draws, aes(x = Group, y = e, fill = Group)) +
 e_violin
 
 ggsave(file.path(PLOT_DIR,"e_violin.png"), e_violin, width = 7, height = 5, dpi = 300)
+
+combined <- grid.arrange(va_violin, h2_violin, e_violin, ncol = 3)
+ggsave(file.path(PLOT_DIR,"va_h_e_violin.png"), combined, width = 16, height = 5, dpi = 300)
+
+
+####################################
+# MOTHER GXE PREDICTIVE RXN NORMS
+####################################
+
+slopes <- spread_draws(model, r_MotherID[MotherID, Temperature]) |>
+  pivot_wider(names_from = Temperature, values_from = r_MotherID) |>
+  mutate(slope = `TemperatureWarm26°C` - `TemperatureCold18°C`) |>
+  group_by(MotherID) |>
+  summarise(
+    slope_mean  = mean(slope),
+    slope_lower = quantile(slope, 0.025),
+    slope_upper = quantile(slope, 0.975)
+  )
+print(slopes, n=Inf) # ALL FAMILY SLOPES
+
+mother_region <- data |>
+  distinct(MotherID, Region)
+
+temp_labels <- c(
+  "TemperatureCold18°C" = "Cold (18°C)",
+  "TemperatureWarm26°C" = "Warm (26°C)"
+)
+
+# predictive rxn norm plot - deviations from average expected blueness
+# accounting for all fixed effect and random effects at zero
+pred_dev_norms <- spread_draws(model, r_MotherID[MotherID, Temperature]) |>
+  group_by(MotherID, Temperature) |>
+  summarise(mean_re = mean(r_MotherID), .groups = "drop") |>
+  left_join(mother_region, by = "MotherID") |>
+  ggplot(aes(x = Temperature, y = mean_re, group = MotherID, colour = Region)) +
+  geom_line(alpha = 0.5, linewidth = 0.5) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
+  scale_colour_manual(values = PAL_REGION) +
+  scale_x_discrete(labels = temp_labels, expand = expansion(mult = 0.1)) +
+  labs(x = "Temperature treatment",
+       y = "Family-level deviation",
+       colour = "Region") +
+  theme_classic() +
+  theme(text = element_text(size = 13),
+        legend.position = "right",
+        legend.background = element_rect(colour = "grey80"))
+
+ggsave(file.path(PLOT_DIR, "pred_dev_norms.png"), pred_dev_norms, width = 6, height = 5, dpi = 200)
+
+
+# Build prediction grid - one row per MotherID × Temperature combination
+# Hold TotalArea at its mean, use modal Region per mother
+pred_grid <- data |>
+  group_by(MotherID) |>
+  mutate(Region = names(sort(table(Region), decreasing = TRUE))[1]) |>
+  ungroup() |>
+  distinct(MotherID, Temperature, Region) |>
+  mutate(
+    TotalArea = mean(data$TotalArea),
+    animal    = NA  # exclude animal/genetic effect
+  )
+
+# Draw posterior expected values per MotherID × Temperature
+pred_rxn_norms <- pred_grid |>
+  add_epred_draws(
+    model,
+    re_formula = ~ (0 + Temperature | MotherID),  # include only MotherID random effects
+    allow_new_levels = FALSE
+  ) |>
+  group_by(MotherID, Temperature) |>
+  summarise(mean_pred = mean(.epred), .groups = "drop") |>
+  left_join(mother_region, by = "MotherID") |>
+  ggplot(aes(x = Temperature, y = mean_pred, group = MotherID, colour = Region)) +
+  geom_line(alpha = 0.45, linewidth = 0.5) +
+  geom_point(alpha = 0.45, size = 1.5) +
+  scale_colour_manual(values = PAL_REGION) +
+  scale_x_discrete(labels = temp_labels, expand = expansion(mult = 0.1)) +
+  labs(x = "Temperature treatment",
+       y = "Predicted blue wing area (mm²)",
+       colour = "Region") +
+  theme_classic() +
+  theme(text = element_text(size = 13),
+        legend.position = "inside",
+        legend.position.inside = c(0.85, 0.85),
+        legend.background = element_rect(colour = "grey80"))
+
+ggsave(file.path(PLOT_DIR, "pred_rxn_norms.png"), pred_rxn_norms, width = 6, height = 5, dpi = 200)
+
+
+####################################
+# REGIONAL PREDICTIVE RXN NORMS
+####################################
+
+region_grid <- expand.grid(
+  Temperature = levels(data$Temperature),
+  Region      = levels(data$Region)
+) |>
+  mutate(
+    TotalArea = mean(data$TotalArea),
+    animal    = NA,
+    MotherID  = NA
+  )
+
+region_epred <- posterior_epred(model, newdata = region_grid,
+                                re_formula = NA, allow_new_levels = TRUE)
+
+region_pred_df <- region_grid |>
+  mutate(
+    post_mean = apply(region_epred, 2, mean),
+    lo        = apply(region_epred, 2, quantile, 0.025),
+    hi        = apply(region_epred, 2, quantile, 0.975)
+  )
+
+pred_region_norms <- ggplot(region_pred_df,
+                            aes(x = Temperature, y = post_mean,
+                                colour = Region, group = Region)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.1, linewidth = 0.8) +
+  scale_colour_manual(values = PAL_REGION) +
+  scale_x_discrete(labels = temp_labels, expand = expansion(mult = 0.15)) +
+  labs(x = "Temperature treatment",
+       y = expression("Predicted blue wing area (mm"^2*")"),
+       colour = "Region") +
+  theme_classic() +
+  theme(text = element_text(size = 13),
+        legend.position = "inside",
+        legend.position.inside = c(0.85, 0.85),
+        legend.background = element_rect(colour = "grey80"))
+
+pred_region_norms
+
+ggsave(file.path(PLOT_DIR, "pred_region_norms.png"), pred_region_norms,
+       width = 6, height = 5, dpi = 300)
+
+
+#########################################
+# VARIANCE PARTITIONING
+#########################################
+
+# --- R² via bayes_R2() ---
+
+# Marginal R²: fixed effects only (TotalArea, Temperature, Region, interactions)
+r2_marginal <- bayes_R2(model, re_formula = NA, summary = FALSE)
+
+# Conditional R²: fixed + all random effects
+r2_conditional <- bayes_R2(model, summary = FALSE)
+
+# Random effects R² (combined MotherID + animal)
+r2_random <- r2_conditional[, "R2"] - r2_marginal[, "R2"]
+
+cat("Marginal R² (fixed effects):    ", fmt(r2_marginal[, "R2"]), "\n")
+cat("Conditional R² (fixed + random):", fmt(r2_conditional[, "R2"]), "\n")
+cat("Random effects R² (combined):   ", fmt(r2_random), "\n")
+
+# --- Manual variance decomposition ---
+# Partition random effects into MotherID vs animal (VA) vs residual
+
+# Residual variance
+v_resid <- draws$sigma^2
+
+# Average VA across 4 environments (or report per-environment)
+va_mean <- (draws$`sd_animal__TemperatureCold18°C:RegionÖland`^2 +
+              draws$`sd_animal__TemperatureWarm26°C:RegionÖland`^2 +
+              draws$`sd_animal__TemperatureCold18°C:RegionSkåne`^2 +
+              draws$`sd_animal__TemperatureWarm26°C:RegionSkåne`^2) / 4
+
+# Average MotherID variance across 2 temperatures
+v_mother <- (draws$`sd_MotherID__TemperatureCold18°C`^2 +
+               draws$`sd_MotherID__TemperatureWarm26°C`^2) / 2
+
+# Fixed effect variance: var of fitted values with no random effects
+fe_pred  <- posterior_epred(model, re_formula = NA)        # draws × obs matrix
+v_fixed  <- apply(fe_pred, 1, var)                         # one value per draw
+
+# Total VP (sum of all components)
+v_total <- v_fixed + v_mother + va_mean + v_resid
+
+# Proportions of variance
+vp_df <- tibble(
+  Component = c("Fixed effects", "MotherID (maternal)", "Animal (VA)", "Residual"),
+  Proportion = list(v_fixed / v_total, v_mother / v_total,
+                    va_mean / v_total,  v_resid / v_total)
+) |>
+  mutate(
+    mean  = sapply(Proportion, mean),
+    lower = sapply(Proportion, quantile, 0.025),
+    upper = sapply(Proportion, quantile, 0.975)
+  ) |>
+  select(-Proportion)
+
+print(vp_df)
+
+#########################################
+# VARIANCE DECOMPOSITION BY TEMPERATURE
+# Matching analysis.R fig5 style
+#########################################
+
+# Indices by temperature (check levels(data$Temperature) if these fail)
+cold_idx <- which(grepl("Cold", data$Temperature))
+warm_idx <- which(grepl("Warm", data$Temperature))
+
+# Fixed effect variance per temperature (subset fe_pred columns by temperature)
+# fe_pred computed above: posterior_epred(model, re_formula = NA)
+v_fixed_cold <- apply(fe_pred[, cold_idx], 1, var)
+v_fixed_warm <- apply(fe_pred[, warm_idx], 1, var)
+
+# Average VA across regions per temperature
+va_cold_draws <- (va_ocold + va_scold) / 2
+va_warm_draws <- (va_owarm + va_swarm) / 2
+
+# Posterior means of each component per temperature
+comp_cold <- c(
+  Residual     = mean(v_resid),
+  Maternal     = mean(va_cold_mother),
+  `Animal (VA)`= mean(va_cold_draws),
+  Fixed        = mean(v_fixed_cold)
+)
+comp_warm <- c(
+  Residual     = mean(v_resid),
+  Maternal     = mean(va_warm_mother),
+  `Animal (VA)`= mean(va_warm_draws),
+  Fixed        = mean(v_fixed_warm)
+)
+
+comp_names <- c("Residual", "Maternal", "Animal (VA)", "Fixed")
+
+# Build bar data frame (actual variance values, matching analysis.R fig5)
+bar_df <- data.frame(
+  temp      = rep(c("Cold (18°C)", "Warm (26°C)"), each = length(comp_names)),
+  component = rep(comp_names, times = 2),
+  value     = c(comp_cold, comp_warm),
+  stringsAsFactors = FALSE
+) |>
+  mutate(
+    temp      = factor(temp, levels = c("Cold (18°C)", "Warm (26°C)")),
+    component = factor(component, levels = comp_names)
+  )
+
+label_df <- bar_df |>
+  group_by(temp) |>
+  mutate(pct = sprintf("%.1f%%", value / sum(value) * 100)) |>
+  ungroup()
+
+vp_temp_bar <- ggplot(bar_df, aes(x = temp, y = value, fill = component)) +
+  geom_col(width = 0.5, alpha = 0.85) +
+  geom_text(
+    data = label_df,
+    aes(label = pct),
+    position = position_stack(vjust = 0.5),
+    colour = "white", fontface = "bold", size = 3
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Residual"     = "#AAAAAA",
+      "Maternal"     = "#E8A838",
+      "Animal (VA)"  = "#56A156",
+      "Fixed"        = "#5A6EA1"
+    )
+  ) +
+  labs(
+    x     = NULL,
+    y     = expression("Variance in blue wing area"),
+    fill  = ""
+  ) +
+  theme_classic() +
+  theme(
+    legend.position   = "inside",
+    legend.position.inside = c(0.78, 0.82),
+    legend.title = element_blank(),
+    legend.background = element_rect(colour = "grey80"),
+    legend.text       = element_text(size = 9),
+    axis.title        = element_text(size = 13),
+    axis.text         = element_text(size = 12)
+  )
+
+vp_temp_bar
+
+ggsave(file.path(PLOT_DIR, "var_decomp.png"), vp_temp_bar,
+       width = 5, height = 5, dpi = 300)
+
+#########################################
+# VARIANCE DECOMPOSITION DOT-AND-RANGE
+#########################################
+
+vp_draws_long <- bind_rows(
+  tibble(temp = "Cold (18°C)", component = "Fixed",       value = v_fixed_cold),
+  tibble(temp = "Cold (18°C)", component = "Maternal",    value = va_cold_mother),
+  tibble(temp = "Cold (18°C)", component = "Animal (VA)", value = va_cold_draws),
+  tibble(temp = "Cold (18°C)", component = "Residual",    value = v_resid),
+  tibble(temp = "Warm (26°C)", component = "Fixed",       value = v_fixed_warm),
+  tibble(temp = "Warm (26°C)", component = "Maternal",    value = va_warm_mother),
+  tibble(temp = "Warm (26°C)", component = "Animal (VA)", value = va_warm_draws),
+  tibble(temp = "Warm (26°C)", component = "Residual",    value = v_resid)
+) |>
+  mutate(
+    temp      = factor(temp, levels = c("Cold (18°C)", "Warm (26°C)")),
+    component = factor(component, levels = rev(comp_names))
+  )
+
+vp_range_summary <- vp_draws_long |>
+  group_by(temp, component) |>
+  summarise(
+    post_mean = mean(value),
+    lo        = quantile(value, 0.025),
+    hi        = quantile(value, 0.975),
+    .groups   = "drop"
+  )
+
+vp_range <- ggplot(vp_range_summary,
+                   aes(x = post_mean, y = component, colour = temp,
+                       xmin = lo, xmax = hi)) +
+  geom_pointrange(position = position_dodge(width = 0.5), size = 0.5) +
+  scale_colour_manual(values = c("Cold (18°C)" = "#3B7DD8", "Warm (26°C)" = "#E8712A")) +
+  labs(
+    x      = expression("Variance in blue wing area"),
+    y      = NULL,
+    colour = NULL
+  ) +
+  theme_classic() +
+  theme(
+    legend.position        = "inside",
+    legend.position.inside = c(0.80, 0.85),
+    legend.background      = element_rect(colour = "grey80"),
+    axis.title             = element_text(size = 13),
+    axis.text              = element_text(size = 12)
+  )
+
+vp_range
+
+ggsave(file.path(PLOT_DIR, "var_ranges.png"), vp_range, width = 6, height = 4, dpi = 300)

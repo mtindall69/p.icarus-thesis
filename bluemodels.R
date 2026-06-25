@@ -143,6 +143,7 @@ plot(allEffects(m1))
 ef<-effect("temp:region", m1)
 summary(ef)
 
+#=======================================
 #Add areaxtemp interaction - Friberg et al (2025)
 m1 <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + avg_total_mm:temp + 
              temp:region + (1|motherID), data=blueFdata)
@@ -150,7 +151,7 @@ summary(m1)
 Anova(m1) # ALL VERY SIGNIFICANT
 AIC(m1) #2147.6
 plot(allEffects(m1))
-
+#=======================================
 
 #mother as fixed effect
 m2 <- lm(avg_blue_mm ~ avg_total_mm + temp * motherID, data=blueFdata)
@@ -159,6 +160,17 @@ Anova(m2) # motherID and temp:motherID significant
 AIC(m2) #2153.591
 ef<-effect("temp:motherID", m2)
 summary(ef) # output for reaction norms
+
+#=========================================
+m3 <- lm(avg_blue_mm ~ avg_total_mm + temp + motherID +
+           avg_total_mm:temp + temp:motherID, data=blueFdata)
+summary(m3)
+Anova(m3) # all significant
+AIC(m3) #2134.245
+ef<-effect("temp:motherID", m3)
+summary(ef) # output for reaction norms
+plot(ef)
+#========================================
 
 
 mb <- lm(avg_blue_mm ~ avg_total_mm + temp * region + motherID, data=blueFdata)
@@ -183,13 +195,71 @@ Anova(mb) # region and temp:region not significant
 AIC(mb) #2153.591
 
 
-mb <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + motherID 
-         + temp:region + temp:motherID + (1|motherID), data=blueFdata)
+mb <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + 
+             avg_total_mm:temp + temp:region + 
+             (1|motherID), data=blueFdata)
 summary(mb)
 Anova(mb) 
-AIC(mb) #1845.377
-ef<-effect("temp:motherID", m2)
+AIC(mb) #2147.6
+
+mb <- lmer(avg_blue_mm ~ avg_total_mm + temp + region + 
+             avg_total_mm:temp + temp:region + 
+             (0 + temp |motherID), data=blueFdata)
+summary(mb)
+Anova(mb) 
+AIC(mb) #2129.897
+
+
+
+# remove region, overlaps with mother, does not improve model
+mb <- lmer(avg_blue_mm ~ avg_total_mm + temp + motherID + 
+             avg_total_mm:temp + temp:motherID + 
+             (1|motherID), data=blueFdata)
+summary(mb)
+Anova(mb) # motherID not significant but temp:motherID is
+AIC(mb) #1834.812
+
+ef<-effect("temp:motherID", mb)
 summary(ef) # output for reaction norms
+
+#====================================
+mb1 <- lmer(avg_blue_mm ~ avg_total_mm + temp + 
+             avg_total_mm:temp + temp:motherID + 
+             (0 + temp |motherID), data=blueFdata)
+summary(mb1)
+Anova(mb1)
+AIC(mb1) #1838.812
+
+mb1 <- lmer(z_blue_mm ~ avg_total_mm + temp + 
+              avg_total_mm:temp + temp:motherID + 
+              (0 + temp |motherID), data=blueFdata)
+summary(mb1)
+Anova(mb1)
+AIC(mb1) #717.835
+#====================================
+
+mb2 <- lmer(avg_blue_mm ~ avg_total_mm + temp + region +
+              avg_total_mm:temp + temp:region + 
+              (0 + temp |motherID), data=blueFdata)
+summary(mb2)
+Anova(mb2) # mother better than region
+anova(mb1,mb2)
+AIC(mb2) # 2129.897, not better than mb1
+
+mb2 <- lmer(z_blue_mm ~ avg_total_mm + temp + region +
+              avg_total_mm:temp + temp:region + 
+              (0 + temp |motherID), data=blueFdata)
+summary(mb2)
+Anova(mb2)
+anova(mb1,mb2) # mb1 better?
+AIC(mb2) # 667.159, better than mb1
+
+library(DHARMa)
+simout <- simulateResiduals(fittedModel=mb2)
+plot(simout)
+testOutliers(simout)
+testOverdispersion(simout)
+testZeroInflation(simout)
 
 
 ####################
@@ -266,6 +336,39 @@ summary(m5)
 Anova(m5) #all interactions significant for blue area
 AIC(m5) #2997.341
 
+ma <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region + 
+             avg_total_mm:temp + temp:region + sex:temp +
+             avg_total_mm:sex + avg_total_mm:region + sex:region +
+             (0+temp|motherID), data=bluesum)
+summary(ma)
+Anova(ma) # all significant
+AIC(ma) #2984.682
+
+ma <- lmer(avg_blue_mm ~ avg_total_mm * sex * temp * region + 
+             (0+temp|motherID), data=bluesum)
+summary(ma)
+Anova(ma) # subtract 4 way and avg_total_mm:temp:region
+AIC(ma) #2983.535
+
+ma <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region +
+             avg_total_mm:temp + avg_total_mm:sex + avg_total_mm:region +
+             sex:temp + sex:region + temp:region +
+             avg_total_mm:sex:temp + avg_total_mm:sex:region + sex:temp:region +
+             (0+temp|motherID), data=bluesum)
+summary(ma)
+Anova(ma) # subtract avg_total_mm:sex:temp
+AIC(ma) #2977.233
+
+ma <- lmer(avg_blue_mm ~ avg_total_mm + sex + temp + region +
+             avg_total_mm:temp + avg_total_mm:sex + avg_total_mm:region +
+             sex:temp + sex:region + temp:region +
+             avg_total_mm:sex:region + sex:temp:region +
+             (0+temp|motherID), data=bluesum)
+summary(ma)
+Anova(ma) # all significant
+AIC(ma) #2975.626
+
+# plot predicted blueness by temperature for sexes
 
 #################
 # TOTAL AREA

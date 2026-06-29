@@ -9,7 +9,7 @@ setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/")
 #load packages
 pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
                RColorBrewer,ape,MCMCglmm,psych,effects,MASS,MuMIn,glmmTMB,rlang,
-               interactions,ggfortify,sjPlot,DHARMa,performance)
+               interactions,ggfortify,sjPlot,DHARMa,performance,ggeffects)
 
 PAL_TEMP <- c("Cold (18°C)" = "#3B7DD8", "Warm (26°C)" = "#E8712A")
 PAL_REGION  <- c("Öland" = "#2CA02C", "Skåne" = "#9467BD")
@@ -106,6 +106,22 @@ summary(n) #YES
 
 # adjust blue area for total area, not just prop
 plot(blueFdata$daughterscore, blueFdata$avg_prop_blue)
+
+# Marginal predictions for daughterscore (avg_total_mm held at its mean)
+pred_n <- ggpredict(n, terms = "daughterscore [all]")
+
+# Partial residuals: raw points adjusted for total area
+blueFdata$adj_blue_mm <- resid(n) + coef(n)["daughterscore"] * blueFdata$daughterscore
+
+pb <- ggplot(pred_n, aes(x = x, y = predicted)) +
+  geom_jitter(data = blueFdata, aes(x = daughterscore, y = adj_blue_mm),
+              width = 0.08, alpha = 0.4, size = 1.8) +
+  scale_x_continuous(breaks = 1:5) +
+  labs(x = "Daughter Blue Score",
+       y = "Blue wing area, adjusted for total area (mm²)") +
+  theme_classic(base_size = 13)
+
+ggsave(file.path(PLOT_DIR, "bluexscore.png"), pb, width = 6, height = 5, dpi = 200)
 
 #=======================================================================
 # FAMILY MEANS PER TEMP
@@ -458,8 +474,8 @@ r2_cold <- summary(lm(avg_blue_mm ~ avg_total_mm,
 r2_warm <- summary(lm(avg_blue_mm ~ avg_total_mm,
                       data = subset(blueFdata, temp_label == "Warm (26°C)")))$adj.r.squared
 
-cold_lbl <- paste0("Cold (18°C)  R² = ", round(r2_cold, 3))
-warm_lbl <- paste0("Warm (26°C)  R² = ", round(r2_warm, 3))
+cold_lbl <- paste0("Cold (18°C)")
+warm_lbl <- paste0("Warm (26°C)")
 
 blueFdata$temp_r2_label <- factor(
     ifelse(blueFdata$temp_label == "Cold (18°C)", cold_lbl, warm_lbl),
@@ -486,7 +502,7 @@ pa <- ggplot(blueFdata, aes(x = avg_total_mm, y = avg_blue_mm, colour = temp_r2_
        colour = "Temperature") +
   theme_classic() +
   theme(legend.position = "inside",
-        legend.position.inside = c(0.20, 0.90),
+        legend.position.inside = c(0.15, 0.90),
         legend.background = element_rect(colour = "grey80"),
         axis.title = element_text(size=13),
         legend.text = element_text(size = 10),

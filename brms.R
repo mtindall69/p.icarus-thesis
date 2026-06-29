@@ -387,7 +387,7 @@ Amat <- as.matrix(nadiv::makeA(pedigree))
 
 #########################################
 # BACK TO GAUSSIAN - SIMPLE MODEL
-
+#===============
 # REGION EFFECTS
 #===============
 

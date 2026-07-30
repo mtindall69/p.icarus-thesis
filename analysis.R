@@ -522,11 +522,11 @@ fig1_temp_region_violin <- function(ind) {
     geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
     scale_fill_manual(values = PAL_TEMP) +
     scale_colour_manual(values = PAL_TEMP) +
-    labs(x = "Region", y = "Proportion blue",
-         title = "Wing blueness by region and temperature",
+    labs(x = "Region", y = "Wing blueness (proportion)",
+         title = "",
          fill = "Temperature") +
     theme_classic() +
-    theme(plot.title = element_text(face = "bold", size = 13, hjust = 0.5),
+    theme(text = element_text(size = 13),
           legend.position = "inside",
           legend.position.inside = c(0.85, 0.9),
           legend.background = element_rect(colour = "grey80"))

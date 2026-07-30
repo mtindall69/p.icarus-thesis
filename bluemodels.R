@@ -584,31 +584,47 @@ m2 <- glmer(total_eggs ~ motherscore * mom_aTWA * days_alive * region + (1|mothe
             data=momfit, family=poisson, control_params)
 control_params <- glmerControl(optimizer="bobyqa", optCtrl=list(maxfun=1000000))
 
-m3 <- glmmTMB(total_eggs ~ motherscore * region_label + days_alive + (1|motherID),
+m3 <- glmmTMB(total_eggs ~ motherscore + region_label + days_alive +
+                motherscore:days_alive + (1|motherID),
               data=momfit, ziformula = ~1, family=nbinom1())
 
-m3a <- update(m3,.~.-motherscore:region_label)
-anova(m3a,m3)
+m3a <- update(m3,.~.-mom_aTWA)
+anova(m3a,m3) #673.85
+
+m3a <- update(m3,.~.+motherscore:days_alive)
+anova(m3a,m3) #675.37
+
+m3a <- update(m3,.~.+days_alive:region_label)
+anova(m3a,m3) #674.03
   
-m3b <- update(m3a,.~.+motherscore:days_alive)
-anova(m3a,m3b)
+m3b <- update(m3,.~.+motherscore:mom_aTWA)
+anova(m3b,m3) #non-convergent
+
+m3b <- update(m3,.~.+motherscore:region_label)
+anova(m3b,m3) #non-convergent
+
+m3b <- update(m3,.~.+mom_aTWA:region_label)
+anova(m3b,m3) #675.82
+
+m3b <- update(m3,.~.+mom_aTWA:days_alive)
+anova(m3b,m3) #674.12
 
 library(DHARMa)
-simout <- simulateResiduals(fittedModel=m)
+simout <- simulateResiduals(fittedModel=m3)
 plot(simout)
 testOutliers(simout)
 testOverdispersion(simout)
 testZeroInflation(simout)
 
-Anova(m3b)
-summary(m3b) #motherscore near significant
+Anova(m3)
+summary(m3) #motherscore near significant
 
 library(sjPlot)
 library(interactions)
 
 cat_plot(m3b, data=momfit, modx=region_label, pred=days_alive, mod2=motherscore, interval.geom=c("linerange"))
 
-p <- plot_model(m3b, terms=c("motherscore", "region_label"), show.data=TRUE, type="pred") +
+p <- plot_model(m3, terms=c("motherscore", "region_label"), show.data=TRUE, type="pred") +
   geom_line() +
   labs(x = "Mother Score", y = "Total Eggs", title=NULL, colour = "Region") +
   scale_color_manual(values = PAL_REGION) +

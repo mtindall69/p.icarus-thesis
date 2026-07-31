@@ -106,7 +106,7 @@ blueMdata <- subset(bluesum, sex=="M")
 # sanity check, is blue score a good predictor of blue area?
 n <- glm(avg_blue_mm ~ avg_total_mm + daughterscore, data=blueFdata)
 summary(n) #YES
-Anova(n)
+r2(n)
 
 # adjust blue area for total area, not just prop
 plot(blueFdata$daughterscore, blueFdata$avg_blue_mm)

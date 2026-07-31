@@ -9,7 +9,10 @@ setwd("C:/Users/maddi/Documents/LU CLASS OF 2026/thesis/")
 #load packages
 pacman::p_load(readxl,dplyr,tidyverse,ggplot2,ggimage,lme4,car,effects,
                RColorBrewer,ape,MCMCglmm,psych,effects,MASS,MuMIn,glmmTMB,rlang,
-               interactions,ggfortify,sjPlot,DHARMa,performance,ggeffects)
+               interactions,ggfortify,sjPlot,DHARMa,performance,ggeffects,grid,
+               gridExtra,patchwork)
+
+PLOT_DIR <- file.path("plots")
 
 PAL_TEMP <- c("Cold (18°C)" = "#3B7DD8", "Warm (26°C)" = "#E8712A")
 PAL_REGION  <- c("Öland" = "#2CA02C", "Skåne" = "#9467BD")
@@ -101,11 +104,12 @@ blueMdata <- subset(bluesum, sex=="M")
 
 #=======================================================================
 # sanity check, is blue score a good predictor of blue area?
-n <- lm(avg_blue_mm ~ avg_total_mm + daughterscore, data=blueFdata)
+n <- glm(avg_blue_mm ~ avg_total_mm + daughterscore, data=blueFdata)
 summary(n) #YES
+Anova(n)
 
 # adjust blue area for total area, not just prop
-plot(blueFdata$daughterscore, blueFdata$avg_prop_blue)
+plot(blueFdata$daughterscore, blueFdata$avg_blue_mm)
 
 # Marginal predictions for daughterscore (avg_total_mm held at its mean)
 pred_n <- ggpredict(n, terms = "daughterscore [all]")
@@ -117,11 +121,38 @@ pb <- ggplot(pred_n, aes(x = x, y = predicted)) +
   geom_jitter(data = blueFdata, aes(x = daughterscore, y = adj_blue_mm),
               width = 0.08, alpha = 0.4, size = 1.8) +
   scale_x_continuous(breaks = 1:5) +
-  labs(x = "Daughter Blue Score",
-       y = "Blue wing area, adjusted for total area (mm²)") +
+  labs(title = "A)",
+       x = "Daughter Blue Score",
+       y = "Blue wing area (adj. mm²)") +
   theme_classic(base_size = 13)
 
 ggsave(file.path(PLOT_DIR, "bluexscore.png"), pb, width = 6, height = 5, dpi = 200)
+
+# estimate mean and 95% CI for each daughterscore level
+bluemeans <- blueFdata %>%
+  group_by(daughterscore) %>%
+  summarise(mean_adj_blue_mm = mean(adj_blue_mm),
+            se = sd(adj_blue_mm)/sqrt(n()),
+            n = n(),
+            .groups = "drop") %>%
+  mutate(lower = mean_adj_blue_mm - qt(0.975, n-1) * se,
+         upper = mean_adj_blue_mm + qt(0.975, n-1) * se)
+
+n2 <- lm(mean_adj_blue_mm ~ daughterscore, data = bluemeans)
+summary(n2)
+
+pb2 <- ggplot(bluemeans, aes(x = daughterscore, y = mean_adj_blue_mm)) +
+  geom_point(size = 3, colour="darkgrey") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  scale_x_continuous(breaks = 1:5) +
+  scale_y_continuous(limits = c(2, 40)) +
+  labs(title = "B)",
+       x = "Daughter Blue Score",
+       y = expression("Blue wing area (adj. mean mm²"%+-%" 95% CI")) +
+  theme_classic(base_size = 13)
+
+combined <- grid.arrange(pb, pb2, ncol = 2)
+ggsave(file.path(PLOT_DIR,"bluemeanxscore.png"), combined, width = 10, height = 5, dpi = 200)
 
 #=======================================================================
 # FAMILY MEANS PER TEMP

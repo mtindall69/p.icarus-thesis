@@ -648,6 +648,48 @@ model <- readRDS("full_model.rds")
 # Extract posterior draws for variance components
 draws <- as_draws_df(model)
 
+#=====================
+# BIVARIATE MODEL
+#=====================
+
+bf_blue <- bf(Blueness ~ TotalArea + Temperature + Region +
+                TotalArea:Temperature + Temperature:Region +
+                (0 + Temperature : Region | gr_id | gr(animal, cov = Amat)))
+
+bf_area <- bf(TotalArea ~ Temperature + Region + Temperature:Region +
+                (0 + Temperature : Region | gr_id | gr(animal, cov = Amat)))
+
+model_bivariate_region <- brm(
+  mvbf(bf_blue, bf_area, rescor = TRUE),
+  data   = data,
+  data2  = list(Amat = Amat),
+  family = gaussian(),
+  chains = CHAINS, iter = ITER, warmup = WARMUP, seed = BAYES_SEED,
+  control = list(adapt_delta = 0.95, max_treedepth = 12)
+)
+
+loo_pooled_gencov   <- loo(model_bivariate)
+loo_stratified_gencov <- loo(model_bivariate_region)
+
+loo_compare(loo_pooled_gencov, loo_stratified_gencov)
+
+# Extract all genetic correlations from the animal random effect
+gen_cors <- as_draws_df(model_bivariate_region) |>
+  select(contains("cor_") & contains("animal")) |>
+  pivot_longer(everything(),
+               names_to  = "parameter",
+               values_to = "value") |>
+  group_by(parameter) |>
+  summarise(
+    mean  = mean(value),
+    lower = quantile(value, 0.025),
+    upper = quantile(value, 0.975),
+    .groups = "drop"
+  )
+
+print(gen_cors, n=Inf)
+#=================================
+
 ##################################
 # 4. Check convergence and fit
 ##################################
@@ -688,7 +730,7 @@ p <- ggplot() +
             alpha = 0.45, linewidth = 0.5) +
   geom_point(data = fam_both,
              aes(x = temp_label, y = mean_blue, group = motherID, colour = region_label),
-             alpha = 0.45, size = 1.5) +
+             alpha = 0.45, size = 2) +
   geom_line(data = grand,
             aes(x = temp_label, y = mean_blue, group = region_label, colour = region_label),
             linewidth = 1.8) +
@@ -699,13 +741,16 @@ p <- ggplot() +
   scale_colour_manual(values = PAL_REGION) +
   scale_x_discrete(expand = expansion(mult = 0.1)) +
   labs(x = "Temperature treatment",
-       y = "Wing blueness (proportion, family mean)",
+       y = "Wing blueness (proportion)",
        title = "A)",
        colour = "Region") +
   theme_classic() +
   theme(text = element_text(size = 13),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 13),
+        legend.text = element_text(size = 13),
         legend.position = "inside",
-        legend.position.inside = c(0.85, 0.85),
+        legend.position.inside = c(0.85, 0.88),
         legend.background = element_rect(colour = "grey80"),
         title = element_text(size = 17))
 
@@ -783,7 +828,7 @@ pred_rxn_norms <- pred_grid |>
   left_join(mother_region, by = "MotherID") |>
   ggplot(aes(x = Temperature, y = mean_pred, group = MotherID, colour = Region)) +
   geom_line(alpha = 0.45, linewidth = 0.5) +
-  geom_point(alpha = 0.45, size = 1.5) +
+  geom_point(alpha = 0.45, size = 2) +
   scale_colour_manual(values = PAL_REGION) +
   scale_x_discrete(labels = temp_labels, expand = expansion(mult = 0.1)) +
   labs(x = "Temperature treatment",
@@ -792,8 +837,11 @@ pred_rxn_norms <- pred_grid |>
        colour = "Region") +
   theme_classic() +
   theme(text = element_text(size = 13),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 14),
+        legend.text = element_text(size = 13),
         legend.position = "inside",
-        legend.position.inside = c(0.85, 0.85),
+        legend.position.inside = c(0.85, 0.88),
         legend.background = element_rect(colour = "grey80"),
         title = element_text(size = 17))
 
@@ -963,6 +1011,62 @@ print(rG_summary)
 # SWarm:SCold rG = 0.492 [-0.517, 0.951]
 # CIs include 0, inconclusive regional GxE from model
 #==================================
+# RAW RG (total area, blue area)
+#==================================
+# Family means per temperature × region for both traits
+family_means_bivar <- data %>%
+  group_by(MotherID, Region, Temperature) %>%
+  summarise(
+    mean_blue = mean(Blueness,  na.rm = TRUE),
+    mean_area = mean(TotalArea, na.rm = TRUE),
+    n_obs     = n(),
+    .groups   = "drop"
+  )
+
+# Raw correlations between Blueness and TotalArea, by temperature
+rG_raw_bivar <- family_means_bivar %>%
+  group_by(Region, Temperature) %>%
+  summarise(
+    n_families = n(),
+    rG         = cor(mean_blue, mean_area, use = "pairwise.complete.obs"),
+    .groups    = "drop"
+  )
+print(rG_raw_bivar)
+
+# Bootstrap 95% CIs — families are still the sampling unit,
+# stratified by temperature environment
+boot_rG_bivar <- function(df, temp_name) {
+  d <- filter(df, Temperature == temp_name)
+  replicate(n_boot, {
+    s <- d[sample(nrow(d), replace = TRUE), ]
+    cor(s$mean_blue, s$mean_area, use = "pairwise.complete.obs")
+  })
+}
+
+boot_cold <- boot_rG_bivar(family_means_bivar, "Cold (18°C)")
+boot_warm <- boot_rG_bivar(family_means_bivar, "Warm (26°C)")
+
+cat("rG Blueness~TotalArea Cold (18°C):", fmt(boot_cold), "\n")
+cat("rG Blueness~TotalArea Warm (26°C):", fmt(boot_warm), "\n")
+
+boot_rG_bivar_full <- function(df, temp_name, region_name) {
+  d <- filter(df, Temperature == temp_name, Region == region_name)
+  replicate(n_boot, {
+    s <- d[sample(nrow(d), replace = TRUE), ]
+    cor(s$mean_blue, s$mean_area, use = "pairwise.complete.obs")
+  })
+}
+
+boot_cold_oland <- boot_rG_bivar_full(family_means_bivar, "Cold (18°C)", "Öland")
+boot_cold_skane <- boot_rG_bivar_full(family_means_bivar, "Cold (18°C)", "Skåne")
+boot_warm_oland <- boot_rG_bivar_full(family_means_bivar, "Warm (26°C)", "Öland")
+boot_warm_skane <- boot_rG_bivar_full(family_means_bivar, "Warm (26°C)", "Skåne")
+
+cat("rG Cold Öland:",  fmt(boot_cold_oland), "\n")
+cat("rG Warm Öland:",  fmt(boot_warm_oland), "\n")
+cat("rG Cold Skåne:",  fmt(boot_cold_skane), "\n")
+cat("rG Warm Skåne:",  fmt(boot_warm_skane), "\n")
+#===================================
 
 ##################################
 # 7. Extract Genetic Parameters
@@ -1084,7 +1188,7 @@ va_violin <- ggplot(va_draws, aes(x = Group, y = VA, fill = Temp)) +
        title = "A)") +
   theme_bw() +
   theme(legend.position = "none") +
-  theme(axis.title = element_text(size = 15),
+  theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 13),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -1218,7 +1322,7 @@ h2_violin <- ggplot(h2_draws, aes(x = Group, y = h2, fill = Temp)) +
        title = "B)") +
   theme_bw() +
   theme(legend.position = "none") +
-  theme(axis.title = element_text(size = 15),
+  theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 13),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -1304,7 +1408,7 @@ e_violin <- ggplot(e_draws, aes(x = Group, y = e, fill = Temp)) +
        title = "C)") +
   theme_bw() +
   theme(legend.position = "right") +
-  theme(axis.title = element_text(size = 15),
+  theme(axis.title = element_text(size = 16),
         axis.text = element_text(size = 13),
         axis.text.x = element_blank(),
         axis.ticks.x = element_blank(),
@@ -1441,7 +1545,7 @@ vp_temp_bar <- ggplot(bar_df, aes(x = temp, y = value, fill = component)) +
     data = label_df,
     aes(label = pct),
     position = position_stack(vjust = 0.5),
-    colour = "white", fontface = "bold", size = 3
+    colour = "white", fontface = "bold", size = 4
   ) +
   scale_fill_manual(
     values = c(
@@ -1463,8 +1567,8 @@ vp_temp_bar <- ggplot(bar_df, aes(x = temp, y = value, fill = component)) +
     legend.position.inside = c(0.78, 0.82),
     legend.title = element_blank(),
     legend.background = element_rect(colour = "grey80"),
-    legend.text       = element_text(size = 9),
-    axis.title        = element_text(size = 13),
+    legend.text       = element_text(size = 12),
+    axis.title        = element_text(size = 15),
     axis.text         = element_text(size = 12),
     title = element_text(size = 17),
   )
@@ -1518,7 +1622,8 @@ vp_range <- ggplot(vp_range_summary,
     legend.position        = "inside",
     legend.position.inside = c(0.80, 0.85),
     legend.background      = element_rect(colour = "grey80"),
-    axis.title             = element_text(size = 13),
+    legend.text            = element_text(size = 12),
+    axis.title             = element_text(size = 15),
     axis.text              = element_text(size = 12),
     title = element_text(size = 17)
   )

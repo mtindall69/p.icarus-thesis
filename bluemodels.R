@@ -517,7 +517,7 @@ pal_temp_r2 <- setNames(c("#3B7DD8", "#E8712A"), c(cold_lbl, warm_lbl))
 
 pa <- ggplot(blueFdata, aes(x = avg_total_mm, y = avg_blue_mm, colour = temp_r2_label,
                       fill = temp_r2_label, linetype = temp_r2_label)) +
-  geom_point(alpha = 0.35, size = 1) +
+  geom_point(alpha = 0.7, size = 1) +
   geom_smooth(method = "lm", se = TRUE, linewidth = 1, alpha = 0.15) +
   geom_hline(yintercept = 0, colour = "gray", linetype = "dotted", linewidth = 0.5) +
   scale_colour_manual(values = pal_temp_r2) +
@@ -535,9 +535,10 @@ pa <- ggplot(blueFdata, aes(x = avg_total_mm, y = avg_blue_mm, colour = temp_r2_
   theme(legend.position = "inside",
         legend.position.inside = c(0.15, 0.90),
         legend.background = element_rect(colour = "grey80"),
-        axis.title = element_text(size=13),
-        legend.text = element_text(size = 10),
-        legend.title = element_text(size = 10))
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 10),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 12))
 
 ggsave(file.path(PLOT_DIR,"wingvblue.png"), pa, width = 6, height = 5, dpi = 200)
 
@@ -660,8 +661,10 @@ p <- plot_model(m3, terms=c("motherscore", "region_label"), show.data=TRUE, type
   labs(x = "Mother Score", y = "Total Eggs", title=NULL, colour = "Region") +
   scale_color_manual(values = PAL_REGION) +
   theme_bw() +
-  theme(axis.title = element_text(size = 12),
-        legend.text = element_text(size = 9))
+  theme(axis.title = element_text(size = 15),
+        axis.text = element_text(size = 12),
+        legend.title = element_text(size = 13),
+        legend.text = element_text(size = 12))
 ggsave(file.path(PLOT_DIR, "fecundityxblue.png"), p,
        width = 7, height = 5, dpi = 200)
 
@@ -822,8 +825,10 @@ p <- ggplot(pred_surv, aes(x = x, y = predicted, colour = group, fill = group,
                         guide = "none") +
   labs(x = "Mother Score", y = "Probability of Survival", title = NULL) +
   theme_bw() +
-  theme(axis.title = element_text(size = 13),
-        legend.text = element_text(size = 10),
+  theme(axis.title = element_text(size = 15),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 11),
+        legend.title = element_text(size = 12),
         legend.position = "top")
 
 ggsave(file.path(PLOT_DIR, "survivalxblue.png"), p,
